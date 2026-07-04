@@ -464,6 +464,39 @@
         <p>1.0 → same meaning. 0 → unrelated. This is the standard measure for comparing embeddings, and
           it's exactly what the stepper above just animated.</p>
       </div>
+      <div class="card">
+        <h3>Worked example — by hand</h3>
+        <p>Toy 2D vectors so every step is checkable: <code>a = [1, 2]</code>, <code>b = [2, 3]</code>.</p>
+        <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+          <tr style="border-bottom:1px solid var(--rule);">
+            <th style="text-align:left; padding:6px 8px;">Step</th>
+            <th style="text-align:left; padding:6px 8px;">Computation</th>
+            <th style="text-align:left; padding:6px 8px;">Value</th>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;">Dot product</td>
+            <td style="padding:6px 8px;"><code>a·b = (1×2) + (2×3) = 2 + 6</code></td>
+            <td style="padding:6px 8px;">8</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;">‖a‖</td>
+            <td style="padding:6px 8px;"><code>√(1² + 2²) = √5</code></td>
+            <td style="padding:6px 8px;">≈ 2.236</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;">‖b‖</td>
+            <td style="padding:6px 8px;"><code>√(2² + 3²) = √13</code></td>
+            <td style="padding:6px 8px;">≈ 3.606</td>
+          </tr>
+          <tr>
+            <td style="padding:6px 8px;">Cosine similarity</td>
+            <td style="padding:6px 8px;"><code>8 / (2.236 × 3.606)</code></td>
+            <td style="padding:6px 8px;"><strong>≈ 0.992</strong></td>
+          </tr>
+        </table>
+        <p style="margin-top:10px;">Near 1.0 — <code>a</code> and <code>b</code> point almost the same direction
+          (both roughly "up and to the right").</p>
+      </div>
     </section>
 
     <section>
