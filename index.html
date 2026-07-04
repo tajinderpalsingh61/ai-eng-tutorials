@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>AI Engineering Lessons</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0;
+    min-height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+    background: #0f1115;
+    color: #e6e6e6;
+  }
+  @media (prefers-color-scheme: light) {
+    body { background: #f5f5f7; color: #111; }
+  }
+  h1 {
+    position: fixed;
+    top: 2.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 2.2rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    margin: 0;
+    background: linear-gradient(90deg, #3987e5, #199e70);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+  .grid {
+    display: flex;
+    flex-direction: row;
+    flex-wrap: nowrap;
+    gap: 1.5rem;
+    justify-content: center;
+  }
+  a.card { flex: 0 0 260px; }
+  a.card {
+    display: block;
+    padding: 1.25rem 1.5rem 1.5rem;
+    border-radius: 12px;
+    text-decoration: none;
+    color: inherit;
+    background: rgba(255,255,255,0.06);
+    border: 1px solid rgba(255,255,255,0.12);
+    transition: transform 0.15s ease, background 0.15s ease;
+  }
+  @media (prefers-color-scheme: light) {
+    a.card { background: #fff; border-color: rgba(0,0,0,0.1); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+  }
+  a.card:hover { transform: translateY(-3px); background: rgba(255,255,255,0.1); }
+  a.card canvas {
+    display: block;
+    width: 100%;
+    height: 90px;
+    border-radius: 8px;
+    margin-bottom: 0.75rem;
+    background: #0d0d0d;
+  }
+  @media (prefers-color-scheme: light) {
+    a.card canvas { background: #f9f9f7; }
+  }
+  a.card h2 { margin: 0 0 0.4rem; font-size: 1.1rem; }
+  a.card p { margin: 0; font-size: 0.85rem; opacity: 0.7; }
+</style>
+</head>
+<body>
+<h1>AI Engineering Lessons</h1>
+<div class="grid">
+  <a class="card" href="llm-foundations/llm-foundations.html">
+    <canvas class="viz" data-viz="tokens" width="300" height="90"></canvas>
+    <h2>LLM Foundations</h2>
+    <p>Tokenization, embeddings, sampling, attention basics.</p>
+  </a>
+  <a class="card" href="rag-fundamentals/rag-fundamentals.html">
+    <canvas class="viz" data-viz="pipeline" data-nodes="Doc,Chunk,Embed,Query,Retrieve" width="300" height="90"></canvas>
+    <h2>RAG Fundamentals</h2>
+    <p>Chunking, embeddings, retrieval, and generation basics.</p>
+  </a>
+  <a class="card" href="rag-production/rag-production.html">
+    <canvas class="viz" data-viz="pipeline" data-nodes="Ingest,Index,Rerank,Serve,Monitor" width="300" height="90"></canvas>
+    <h2>RAG in Production</h2>
+    <p>Scaling, evaluation, and reliability for real-world RAG.</p>
+  </a>
+</div>
+
+<script>
+// Mini looping viz: text -> tokens -> embedding vector. Palette per dataviz skill.
+(function () {
+  const dark = window.matchMedia('(prefers-color-scheme: dark)');
+  const palette = () => dark.matches
+    ? { blue: '#3987e5', aqua: '#199e70', ink: '#c3c2b7', muted: '#5a5a56' }
+    : { blue: '#2a78d6', aqua: '#1baf7a', ink: '#52514e', muted: '#c3c2b7' };
+
+  document.querySelectorAll('canvas[data-viz="tokens"]').forEach((canvas) => {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300, h = canvas.clientHeight || 90;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const words = ['LLM', 'engineering', 'rocks'];
+    const tokenColors = words.map((_, i) => (i % 2 === 0 ? 'blue' : 'aqua'));
+    const period = 4000; // ms per loop
+    const start = performance.now();
+
+    function draw(now) {
+      const c = palette();
+      const t = ((now - start) % period) / period; // 0..1
+      ctx.clearRect(0, 0, w, h);
+
+      const tokenY = h * 0.35;
+      const vecY = h * 0.75;
+      const gap = 10;
+      let x = 14;
+      const boxes = [];
+      ctx.font = '11px system-ui, sans-serif';
+      words.forEach((wd) => {
+        const tw = ctx.measureText(wd).width + 14;
+        boxes.push({ x, w: tw, label: wd });
+        x += tw + gap;
+      });
+
+      // phase 0: 0-0.35 boxes appear; 0.35-0.7 arrows draw down; 0.7-1 dots pulse
+      boxes.forEach((b, i) => {
+        const appear = Math.min(1, Math.max(0, (t - i * 0.06) / 0.2));
+        if (appear <= 0) return;
+        ctx.globalAlpha = appear;
+        ctx.strokeStyle = c[tokenColors[i]];
+        ctx.lineWidth = 1.5;
+        const rw = b.w, rh = 22;
+        const ry = tokenY - rh / 2;
+        const r = 4;
+        ctx.beginPath();
+        ctx.moveTo(b.x + r, ry);
+        ctx.arcTo(b.x + rw, ry, b.x + rw, ry + rh, r);
+        ctx.arcTo(b.x + rw, ry + rh, b.x, ry + rh, r);
+        ctx.arcTo(b.x, ry + rh, b.x, ry, r);
+        ctx.arcTo(b.x, ry, b.x + rw, ry, r);
+        ctx.closePath();
+        ctx.stroke();
+        ctx.fillStyle = c.ink;
+        ctx.fillText(b.label, b.x + 7, tokenY + 4);
+
+        const lineProg = Math.min(1, Math.max(0, (t - 0.35 - i * 0.05) / 0.25));
+        if (lineProg > 0) {
+          ctx.globalAlpha = appear * lineProg;
+          ctx.strokeStyle = c.muted;
+          ctx.beginPath();
+          ctx.moveTo(b.x + rw / 2, tokenY + rh / 2);
+          ctx.lineTo(b.x + rw / 2, tokenY + rh / 2 + (vecY - tokenY - rh / 2 - 8) * lineProg);
+          ctx.stroke();
+        }
+
+        const dotProg = Math.min(1, Math.max(0, (t - 0.65 - i * 0.03) / 0.2));
+        if (dotProg > 0) {
+          const pulse = 3 + Math.sin(t * Math.PI * 6 + i) * 1.2;
+          ctx.globalAlpha = dotProg;
+          ctx.fillStyle = c[tokenColors[i]];
+          ctx.beginPath();
+          ctx.arc(b.x + rw / 2, vecY, pulse, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      });
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  });
+
+  // Pipeline viz: node -> node -> node chain, sequential highlight pulse.
+  document.querySelectorAll('canvas[data-viz="pipeline"]').forEach((canvas) => {
+    const ctx = canvas.getContext('2d');
+    const dpr = window.devicePixelRatio || 1;
+    const w = canvas.clientWidth || 300, h = canvas.clientHeight || 90;
+    canvas.width = w * dpr;
+    canvas.height = h * dpr;
+    ctx.scale(dpr, dpr);
+
+    const nodes = canvas.dataset.nodes.split(',');
+    const colors = nodes.map((_, i) => (i % 2 === 0 ? 'blue' : 'aqua'));
+    const period = 4500;
+    const start = performance.now();
+    const midY = h * 0.55;
+
+    function draw(now) {
+      const c = palette();
+      const t = ((now - start) % period) / period;
+      ctx.clearRect(0, 0, w, h);
+
+      ctx.font = '10px system-ui, sans-serif';
+      const gap = 8;
+      let x = 12;
+      const boxes = [];
+      nodes.forEach((label) => {
+        const tw = ctx.measureText(label).width + 12;
+        boxes.push({ x, w: tw, label });
+        x += tw + gap;
+      });
+
+      const step = 1 / nodes.length;
+      boxes.forEach((b, i) => {
+        const appear = Math.min(1, Math.max(0, (t - i * 0.04) / 0.15));
+        if (appear <= 0) return;
+
+        // active window for this node's pulse
+        const activeStart = i * step;
+        const activeEnd = activeStart + step * 0.8;
+        const active = t >= activeStart && t < activeEnd;
+        const glow = active ? 0.5 + 0.5 * Math.sin(((t - activeStart) / step) * Math.PI) : 0;
+
+        ctx.globalAlpha = appear;
+        const rw = b.w, rh = 24, ry = midY - rh / 2, r = 5;
+        ctx.beginPath();
+        ctx.moveTo(b.x + r, ry);
+        ctx.arcTo(b.x + rw, ry, b.x + rw, ry + rh, r);
+        ctx.arcTo(b.x + rw, ry + rh, b.x, ry + rh, r);
+        ctx.arcTo(b.x, ry + rh, b.x, ry, r);
+        ctx.arcTo(b.x, ry, b.x + rw, ry, r);
+        ctx.closePath();
+
+        if (glow > 0) {
+          ctx.save();
+          ctx.shadowColor = c[colors[i]];
+          ctx.shadowBlur = 8 * glow;
+          ctx.fillStyle = c[colors[i]];
+          ctx.globalAlpha = appear * (0.12 + 0.18 * glow);
+          ctx.fill();
+          ctx.restore();
+        }
+
+        ctx.strokeStyle = c[colors[i]];
+        ctx.lineWidth = 1.5;
+        ctx.stroke();
+        ctx.fillStyle = c.ink;
+        ctx.globalAlpha = appear;
+        ctx.fillText(b.label, b.x + 6, midY + 3);
+
+        // connector arrow to next node
+        if (i < boxes.length - 1) {
+          const nextAppear = Math.min(1, Math.max(0, (t - (i + 1) * 0.04) / 0.15));
+          ctx.globalAlpha = Math.min(appear, nextAppear || appear) ;
+          ctx.strokeStyle = c.muted;
+          ctx.beginPath();
+          ctx.moveTo(b.x + rw, midY);
+          ctx.lineTo(b.x + rw + gap, midY);
+          ctx.stroke();
+          ctx.beginPath();
+          ctx.moveTo(b.x + rw + gap - 3, midY - 3);
+          ctx.lineTo(b.x + rw + gap, midY);
+          ctx.lineTo(b.x + rw + gap - 3, midY + 3);
+          ctx.stroke();
+        }
+      });
+
+      ctx.globalAlpha = 1;
+      requestAnimationFrame(draw);
+    }
+    requestAnimationFrame(draw);
+  });
+})();
+</script>
+</body>
+</html>

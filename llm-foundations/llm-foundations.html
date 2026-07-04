@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>LLM Foundations</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --panel: #1a1a19;
+      --panel2: #232322;
+      --rule: rgba(255, 255, 255, 0.10);
+      --ink: #ffffff;
+      --dim: #898781;
+      --signal: #3987e5;
+      --signal-soft: rgba(57, 135, 229, 0.12);
+      --accent: #199e70;
+      --flag: #e66767;
+      --flag-soft: rgba(230, 103, 103, 0.10);
+      --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.65;
+      font-size: 17px;
+    }
+
+    .wrap {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 56px 40px 120px;
+    }
+
+    @media (max-width: 700px) {
+      .wrap {
+        padding: 40px 20px 80px;
+      }
+    }
+
+    header {
+      border-bottom: 1px solid var(--rule);
+      padding-bottom: 20px;
+      margin-bottom: 36px;
+      text-align: center;
+    }
+
+    h1 {
+      font-weight: 700;
+      font-size: 3rem;
+      margin: 0 0 10px;
+      letter-spacing: -.01em;
+      background: linear-gradient(135deg, #3987e5, #86b6ef, #199e70);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+      background-clip: text;
+    }
+
+    .sub {
+      color: var(--dim);
+      font-size: 1.1rem;
+    }
+
+    .goal {
+      background: linear-gradient(135deg, rgba(57,135,229,0.12), rgba(25,158,112,0.08));
+      border: 1px solid rgba(57,135,229,0.25);
+      padding: 16px 20px;
+      margin-bottom: 40px;
+      border-radius: 16px;
+    }
+
+    .goal strong {
+      color: var(--signal);
+    }
+
+    section {
+      margin-bottom: 56px;
+    }
+
+    .sec-head {
+      display: flex;
+      align-items: baseline;
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .sec-num {
+      font-family: var(--mono);
+      font-size: .95rem;
+      color: var(--dim);
+    }
+
+    h2 {
+      font-weight: 700;
+      font-size: 1.7rem;
+      margin: 0;
+    }
+
+    p {
+      margin: 0 0 12px;
+    }
+
+    ul,
+    ol {
+      margin: 0 0 12px;
+      padding-left: 22px;
+    }
+
+    li {
+      margin-bottom: 6px;
+    }
+
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: 16px;
+      padding: 26px 28px;
+      margin: 18px 0;
+    }
+
+    .card h3 {
+      font-size: 1.15rem;
+      margin: 0 0 12px;
+      font-weight: 600;
+    }
+
+    code,
+    .kw {
+      font-family: var(--mono);
+      background: var(--panel2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: .85em;
+      color: #86b6ef;
+    }
+
+    pre {
+      background: var(--panel2);
+      color: var(--ink);
+      border-radius: 10px;
+      padding: 14px 16px;
+      overflow-x: auto;
+      font-size: .8rem;
+      margin: 10px 0 0;
+      border: 1px solid var(--rule);
+    }
+
+    pre code {
+      background: none;
+      color: inherit;
+      padding: 0;
+      font-size: 1em;
+    }
+
+    .qbox {
+      background: var(--flag-soft);
+      border: 1px solid rgba(230,103,103,0.25);
+      border-radius: 16px;
+      padding: 16px 20px;
+      margin: 16px 0;
+    }
+
+    .qbox .tag {
+      font-family: var(--mono);
+      font-size: .7rem;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--flag);
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .demo {
+      margin: 18px 0;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(7, 1fr);
+      gap: 4px;
+      margin: 14px 0;
+      font-family: var(--mono);
+      font-size: .72rem;
+    }
+
+    .tok {
+      background: var(--panel2);
+      border: 1px solid var(--rule);
+      padding: 6px 2px;
+      text-align: center;
+      border-radius: 4px;
+    }
+
+    .tok.focus {
+      background: var(--signal);
+      color: #fff;
+      border-color: var(--signal);
+      font-weight: 600;
+    }
+
+    .tok.strong {
+      background: var(--signal-soft);
+      border-color: var(--signal);
+      color: #86b6ef;
+    }
+
+    .caption {
+      font-size: .78rem;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 6px;
+    }
+
+    .bar-fill {
+      transition: width .4s ease;
+    }
+
+    .viz {
+      background: var(--panel);
+      border: 1px solid var(--rule);
+      border-radius: 16px;
+      padding: 24px 28px 26px;
+      margin: 18px 0;
+    }
+
+    .viz-title {
+      font-size: .78rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: #199e70;
+      margin-bottom: 12px;
+    }
+
+    .step-controls {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 14px;
+      flex-wrap: wrap;
+    }
+
+    .step-btn {
+      font-family: var(--sans);
+      font-size: .8rem;
+      font-weight: 600;
+      background: var(--panel2);
+      color: var(--ink);
+      border: 1px solid var(--rule);
+      border-radius: 8px;
+      padding: 6px 14px;
+      cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+
+    .step-btn:hover:not(:disabled) {
+      border-color: var(--signal);
+    }
+
+    .step-btn:disabled {
+      opacity: .4;
+      cursor: not-allowed;
+    }
+
+    .step-btn.primary {
+      background: var(--signal);
+      border-color: var(--signal);
+      color: #fff;
+    }
+
+    .step-counter {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--dim);
+      margin-left: auto;
+    }
+
+    .step-caption {
+      background: var(--signal-soft);
+      border: 1px solid rgba(57,135,229,0.25);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: .85rem;
+      margin-bottom: 16px;
+      min-height: 1.4em;
+    }
+
+    .viz-controls {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+      flex-wrap: wrap;
+      margin-bottom: 14px;
+      font-size: .82rem;
+    }
+
+    .viz-controls input[type="range"] {
+      accent-color: var(--signal);
+      vertical-align: middle;
+    }
+
+    .viz-toggle-group {
+      display: flex;
+      gap: 6px;
+    }
+
+    .viz-log {
+      font-family: var(--mono);
+      font-size: .78rem;
+      color: var(--dim);
+      margin-top: 10px;
+      min-height: 1.4em;
+    }
+
+    .viz-log strong {
+      color: #199e70;
+    }
+
+    .attn-wrap {
+      overflow-x: auto;
+    }
+
+    .attn-grid {
+      display: grid;
+      gap: 2px;
+      font-family: var(--mono);
+      margin: 4px auto;
+      width: max-content;
+    }
+
+    .attn-cell {
+      width: 42px;
+      height: 42px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: .68rem;
+      border-radius: 3px;
+      background: var(--panel2);
+      color: var(--dim);
+      transition: background .4s ease, color .4s ease, box-shadow .3s ease;
+      position: relative;
+    }
+
+    .attn-cell.hdr {
+      background: transparent;
+      color: var(--dim);
+      font-size: .6rem;
+      writing-mode: vertical-rl;
+      transform: rotate(180deg);
+      text-align: left;
+    }
+
+    .attn-cell.row-hdr {
+      writing-mode: horizontal-tb;
+      transform: none;
+      justify-content: flex-end;
+      padding-right: 4px;
+      font-size: .62rem;
+    }
+
+    .attn-cell.active-row {
+      box-shadow: inset 0 0 0 2px var(--signal);
+    }
+
+    .attn-cell.winner {
+      box-shadow: inset 0 0 0 2px #199e70;
+      color: #fff;
+      font-weight: 700;
+    }
+
+    .attn-legend {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: .72rem;
+      color: var(--dim);
+      margin-top: 12px;
+    }
+
+    .attn-legend .swatch {
+      width: 90px;
+      height: 10px;
+      border-radius: 3px;
+      background: linear-gradient(90deg, var(--panel2), var(--signal));
+    }
+
+    .bars {
+      margin: 10px 0;
+    }
+
+    .cache-blocks {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 3px;
+      margin: 14px 0;
+      min-height: 40px;
+    }
+
+    .cache-tok {
+      width: 14px;
+      height: 24px;
+      border-radius: 3px;
+      background: var(--panel2);
+      border: 1px solid var(--rule);
+      transition: background 0.4s ease, border-color 0.4s ease, transform 0.3s ease;
+    }
+
+    .cache-tok.billed {
+      background: var(--signal);
+      border-color: var(--signal);
+    }
+
+    .cache-tok.cached {
+      background: var(--accent);
+      border-color: var(--accent);
+      transform: scale(1.05);
+    }
+
+    .cache-tok.stored {
+      border-color: var(--accent);
+      border-style: dashed;
+    }
+
+    .cache-panel {
+      display: flex;
+      gap: 24px;
+      font-family: var(--mono);
+      font-size: .8rem;
+      color: var(--dim);
+      border-top: 1px solid var(--rule);
+      padding-top: 8px;
+      margin-top: 6px;
+    }
+
+    .cache-panel strong {
+      color: var(--ink);
+    }
+
+    .bar-row {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 6px;
+      font-family: var(--mono);
+      font-size: .78rem;
+    }
+
+    .bar-lbl {
+      width: 60px;
+      flex-shrink: 0;
+      color: var(--dim);
+      text-align: right;
+    }
+
+    .bar-track {
+      flex: 1;
+      background: var(--panel2);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    .bar-fill {
+      background: var(--signal);
+      color: #fff;
+      padding: 4px 8px;
+      white-space: nowrap;
+      border-radius: 4px;
+      min-width: fit-content;
+    }
+
+    .bar-fill.hot {
+      background: #e66767;
+    }
+
+    .bar-fill.cool {
+      background: #199e70;
+      color: #0d0d0d;
+    }
+
+    .bar-fill.kept {
+      background: var(--signal);
+    }
+
+    .bar-fill.cut {
+      background: var(--panel2);
+      color: var(--dim);
+      border: 1px dashed var(--rule);
+    }
+
+    .compare {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 14px;
+      margin: 16px 0;
+    }
+
+    @media(max-width:600px) {
+      .compare {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .compare .col {
+      border: 1px solid var(--rule);
+      border-radius: 16px;
+      padding: 14px 16px;
+      background: var(--panel);
+    }
+
+    .compare .col h4 {
+      margin: 0 0 8px;
+      font-size: .85rem;
+      font-family: var(--mono);
+      text-transform: uppercase;
+      letter-spacing: .05em;
+      color: var(--dim);
+    }
+
+    footer {
+      font-family: var(--mono);
+      font-size: .75rem;
+      color: var(--dim);
+      text-align: center;
+      margin-top: 60px;
+    }
+
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <header>
+      <h1>LLM Foundations</h1>
+      <div class="sub">Talk-through + live API calls</div>
+    </header>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">01</span>
+        <h2>What is a language model, really</h2>
+      </div>
+      <p>Strip away the hype: an LLM is a function that takes a sequence of tokens and predicts the most likely next
+        token, one at a time, repeatedly.</p>
+      <div class="card">
+        <h3>The core loop</h3>
+        <p><code>"The capital of France is"</code> → model scores every possible next token → picks (or samples) one →
+          appends it → repeats.</p>
+        <p>Everything — chat, code generation, agents — is this loop wrapped in formatting and tooling. There is no
+          separate "understanding" step; prediction <em>is</em> the mechanism.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">02</span>
+        <h2>Tokens, not words</h2>
+      </div>
+      <p>Models don't see words. They see <span class="kw">tokens</span> — chunks of text, often sub-word pieces.</p>
+      <ul>
+        <li><code>"unbelievable"</code> might split into <code>un</code> + <code>believ</code> + <code>able</code></li>
+        <li>Common words are usually one token; rare words, code, and non-English text use more tokens</li>
+        <li>This is why pricing and context limits are measured in tokens, not characters or words</li>
+      </ul>
+      <div class="card">
+        <h3>Why this matters for engineering</h3>
+        <p>Cost, latency, and context budget are all token-driven. A prompt that "looks short" in a foreign language or
+          in code can burn far more tokens than the same idea in plain English.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">02b</span>
+        <h2>How tokens get made — Byte Pair Encoding</h2>
+      </div>
+      <div class="card">
+        <h3>The idea</h3>
+        <p>Start with individual characters. Repeatedly find the <strong>most frequent adjacent pair</strong> in the
+          training text and merge it into a single new token. Repeat thousands of times until you hit a target
+          vocabulary size (e.g. ~100k tokens).</p>
+      </div>
+      <div class="demo">
+        <p><strong>Tiny walkthrough on the word "lower", "lowest", "newer" appearing often together:</strong></p>
+        <div class="grid" style="grid-template-columns:repeat(5,1fr);">
+          <div class="tok">l</div>
+          <div class="tok">o</div>
+          <div class="tok">w</div>
+          <div class="tok">e</div>
+          <div class="tok">r</div>
+        </div>
+        <div class="caption">Step 0: raw characters</div>
+        <div class="grid" style="grid-template-columns:repeat(4,1fr);margin-top:10px;">
+          <div class="tok strong">lo</div>
+          <div class="tok">w</div>
+          <div class="tok">e</div>
+          <div class="tok">r</div>
+        </div>
+        <div class="caption">Step 1: "l"+"o" merged because it's the most frequent pair across the corpus</div>
+        <div class="grid" style="grid-template-columns:repeat(3,1fr);margin-top:10px;">
+          <div class="tok strong">low</div>
+          <div class="tok">e</div>
+          <div class="tok">r</div>
+        </div>
+        <div class="caption">Step 2: "lo"+"w" merged next. Process repeats until vocab budget is used up.</div>
+      </div>
+      <p>Result: frequent whole words end up as one token (<code>"the"</code>), rare or foreign words get split into
+        smaller familiar pieces (<code>"unbelievable"</code> → <code>un</code>+<code>believ</code>+<code>able</code>) —
+        which is exactly the token-cost behavior from the previous section.</p>
+      <div class="qbox">
+        <div class="tag">One-line takeaway</div>
+        BPE is just frequency-based compression of text into a fixed vocabulary — it's why token boundaries look
+        arbitrary but aren't random.
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">03</span>
+        <h2>Attention, at the intuition level</h2>
+      </div>
+      <p>This is the one mechanism worth understanding clearly — everything else in AI engineering (RAG, context
+        management, cost) traces back to it.</p>
+
+      <div class="card">
+        <h3>The idea in one sentence</h3>
+        <p>For every token, the model asks <em>"which other tokens in this context actually matter for understanding
+            me?"</em> — and weighs them accordingly, instead of just reading left-to-right blindly.</p>
+      </div>
+
+      <p><strong>Example:</strong> <code>"The trophy didn't fit in the suitcase because it was too big."</code> — what
+        does <code>"it"</code> refer to, the trophy or the suitcase? Step through how attention actually resolves this:</p>
+
+      <div class="viz" id="attn-viz">
+        <div class="viz-title">Attention matrix — built step by step</div>
+        <div class="step-controls">
+          <button class="step-btn" id="attn-prev">◀ Prev</button>
+          <button class="step-btn primary" id="attn-play">▶ Play</button>
+          <button class="step-btn" id="attn-next">Next ▶</button>
+          <button class="step-btn" id="attn-reset">Reset</button>
+          <span class="step-counter" id="attn-counter">Step 1 of 6</span>
+        </div>
+        <div class="step-caption" id="attn-caption"></div>
+        <div class="attn-wrap">
+          <div class="attn-grid" id="attn-grid"></div>
+        </div>
+        <div class="attn-legend">
+          <span>low weight</span><div class="swatch"></div><span>high weight</span>
+        </div>
+      </div>
+
+      <p>Older models (RNNs) processed text strictly left to right and lost track of anything far back. Attention lets
+        <strong>every token look at every other token directly</strong>, regardless of distance — that's the unlock.
+      </p>
+
+      <div class="card">
+        <h3>Two consequences worth internalizing</h3>
+        <ol>
+          <li><strong>Why not just paste the whole document into the prompt?</strong> — Attention computes a
+            relationship between every pair of tokens. Double the input length, and the compute roughly quadruples. This
+            is precisely why RAG exists: retrieve only the relevant chunks instead of paying for full-document attention
+            every time.</li>
+          <li><strong>Why does a long conversation get slower / costlier?</strong> — Every new token re-attends to the
+            full growing context. Systems cache the earlier computation (<span class="kw">KV cache</span>) so it isn't
+            redone from scratch — this is why the first token takes a moment ("time to first token") but generation
+            speeds up after.</li>
+        </ol>
+      </div>
+
+      <div class="card">
+        <h3>Attention matrix — why it's O(n²)</h3>
+        <p>Every token must score against every other token. n tokens → n × n pairs → attention matrix size grows as
+          <strong>n²</strong>, not n. Double context length, compute (and memory for that matrix) roughly
+          <strong>quadruples</strong>, not doubles.</p>
+        <table style="width:100%; border-collapse:collapse; margin-top:10px;">
+          <tr style="border-bottom:1px solid var(--rule);">
+            <th style="text-align:left; padding:6px 8px;">Seq len (n)</th>
+            <th style="text-align:left; padding:6px 8px;">Matrix size (n²)</th>
+            <th style="text-align:left; padding:6px 8px;">Size @ fp16 (1 head)</th>
+            <th style="text-align:left; padding:6px 8px;">Relative to 1024</th>
+          </tr>
+          <tr><td style="padding:6px 8px;">1,024</td><td style="padding:6px 8px;">~1.0M cells</td><td style="padding:6px 8px;">~2.1 MB</td><td style="padding:6px 8px;">1×</td></tr>
+          <tr><td style="padding:6px 8px;">2,048</td><td style="padding:6px 8px;">~4.2M cells</td><td style="padding:6px 8px;">~8.4 MB</td><td style="padding:6px 8px;">4×</td></tr>
+          <tr><td style="padding:6px 8px;">8,192</td><td style="padding:6px 8px;">~67M cells</td><td style="padding:6px 8px;">~134 MB</td><td style="padding:6px 8px;">64×</td></tr>
+          <tr><td style="padding:6px 8px;">32,000</td><td style="padding:6px 8px;">~1.0B cells</td><td style="padding:6px 8px;">~2.0 GB</td><td style="padding:6px 8px;">~977×</td></tr>
+          <tr><td style="padding:6px 8px;">128,000</td><td style="padding:6px 8px;">~16.4B cells</td><td style="padding:6px 8px;">~32.8 GB</td><td style="padding:6px 8px;">~15,625×</td></tr>
+        </table>
+        <div class="caption">Bytes = n² × 2 (fp16), one attention head — real models have dozens of heads and layers, so
+          actual memory is this number × heads × layers. Length up 128×, matrix up ~16,000×. That's why "just paste the whole codebase in" breaks
+          down long before the token limit does — the model isn't scaling linearly, it's scaling quadratically, and so
+          is your bill.</div>
+      </div>
+
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">04</span>
+        <h2>Context window — the budget you're always managing</h2>
+      </div>
+      <p>The context window is the total tokens (input + output) a model can attend over at once.</p>
+      <div class="compare">
+        <div class="col">
+          <h4>Small context</h4>
+          Cheaper, faster, forces you to be selective about what you feed the model — pushes toward RAG, summarization,
+          chunking.
+        </div>
+        <div class="col">
+          <h4>Large context</h4>
+          Tempting to "just dump everything in," but quality often degrades on info buried in the middle ("lost in the
+          middle") and cost still scales up.
+        </div>
+      </div>
+      <p>Practical framing for engineers: <strong>the context window is not free real estate</strong> — every token you
+        add is a tradeoff against cost, latency, and the model's ability to actually use it.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05</span>
+        <h2>Prompting basics</h2>
+      </div>
+      <div class="card">
+        <h3>System vs. user role</h3>
+        <p><code>system</code> sets standing behavior ("You are a precise, concise coding assistant"). <code>user</code>
+          is the actual request. Keep system prompts stable; vary user turns.</p>
+      </div>
+      <div class="card">
+        <h3>Zero-shot vs. few-shot</h3>
+        <p><strong>Zero-shot:</strong> just ask. <strong>Few-shot:</strong> show 2–3 examples of input→output before the
+          real request — dramatically improves consistency of format/style for tasks like classification or extraction.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05b</span>
+        <h2>Sampling parameters</h2>
+      </div>
+      <p>The model's forward pass ends in a <strong>softmax over the vocabulary</strong> — a probability for every
+        possible next token. Sampling parameters decide how that distribution turns into one chosen token. Same
+        distribution, three different knobs, three different outcomes. Play with the lab below — it's computing a
+        real softmax, not canned numbers.</p>
+
+      <div class="viz" id="sampling-viz">
+        <div class="viz-title">Sampling lab — prompt: "The weather today is ___"</div>
+        <div class="viz-controls">
+          <label>temperature <input type="range" id="temp-slider" min="0.2" max="2" step="0.05" value="1"> <code id="temp-val">1.00</code></label>
+          <div class="viz-toggle-group">
+            <button class="step-btn primary" data-mode="none" id="mode-none">no filter</button>
+            <button class="step-btn" data-mode="topk" id="mode-topk">top_k = 3</button>
+            <button class="step-btn" data-mode="topp" id="mode-topp">top_p = 0.8</button>
+          </div>
+          <button class="step-btn primary" id="draw-btn" style="margin-left:auto;">🎲 draw sample</button>
+        </div>
+        <div class="bars" id="sampling-bars"></div>
+        <div class="viz-log" id="sampling-log">Move the slider or pick a filter, then draw a sample.</div>
+      </div>
+
+      <div class="card">
+        <h3>temperature — reshapes the distribution before sampling</h3>
+        <p>Temperature divides the logits by <code>T</code> before softmax, <em>then</em> renormalizes. It doesn't
+          remove tokens — it changes how peaked or flat the whole curve is. Drag the slider above to 0.3 and watch
+          "sunny" swallow almost everything; drag it to 1.8 and watch the tail (stormy, dry) become genuinely reachable.</p>
+        <p>Low temperature for extraction/classification (you want the single best answer, repeatably). Higher for
+          brainstorming/creative writing (you want the tail to be reachable).</p>
+        <p><strong>Final pick:</strong> temperature never removes candidates — every token stays eligible, just
+          reshaped. The draw is a weighted random pick straight from this reshaped distribution. At <code>T → 0</code>
+          it's so spiked the draw always lands on the top token — effectively argmax.</p>
+      </div>
+
+      <div class="card">
+        <h3>top_k — keep a fixed number of candidates</h3>
+        <p>Sort tokens by probability, keep only the top <code>k</code>, drop the rest before drawing. Simple and
+          predictable, but blind to shape: <code>k=3</code> always keeps exactly 3 tokens, whether the distribution is
+          sharply peaked or nearly flat. Click "top_k = 3" above — the cut tokens gray out and become undrawable.</p>
+        <p><strong>Final pick:</strong> the survivors get renormalized to sum to 1, then one is picked via weighted
+          random draw over just those — click "draw sample" to watch it happen with a live cumulative-range readout.</p>
+      </div>
+
+      <div class="card">
+        <h3>top_p (nucleus sampling) — keep enough tokens to cover a probability mass</h3>
+        <p>Sort tokens by probability, walk down accumulating a <strong>running cumulative sum</strong>, stop as soon
+          as it reaches <code>p</code>. The candidate set size adapts to the shape of the distribution — a
+          confident/peaked distribution needs few tokens to hit <code>p</code>; a flat/uncertain one needs many.
+          Click "top_p = 0.8" above and compare which tokens survive versus top_k=3 — nucleus sampling can keep more
+          <em>or</em> fewer tokens depending on how the mass is distributed.</p>
+        <p><strong>Final pick:</strong> same finish as top_k — renormalize the survivors, then weighted random draw.</p>
+      </div>
+
+      <div class="card">
+        <h3>max_tokens & stop_sequences</h3>
+        <p><code>max_tokens</code> caps output length (hard cutoff — can truncate mid-sentence).
+          <code>stop_sequences</code> tell the model to stop generating the moment it produces a given string — useful
+          for structured formats.
+        </p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05c</span>
+        <h2>Getting structured output</h2>
+      </div>
+      <p>In production you rarely want free-text back — you want JSON you can parse and pass to the next system.</p>
+      <div class="card">
+        <h3>Approach 1: prompt for JSON directly</h3>
+        <p>Explicitly instruct the format and give a schema/example. Works, but the model can still occasionally add
+          stray text or break formatting.</p>
+      </div>
+      <div class="card">
+        <h3>Approach 2: tool/function calling (more reliable)</h3>
+        <p>Define a "tool" with a strict input schema. The model is constrained to return arguments matching that schema
+          — this is the production-grade way to get structured data, and it's the same mechanism agent tool-calling is
+          built on.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05e</span>
+        <h2>Prompt caching (cache_control)</h2>
+      </div>
+      <p>A repeated prefix — long system prompt, few-shot examples, a big doc — costs full tokens <em>every call</em>
+        unless you cache it. Provider stores the prefix's computed state once; next call that shares it pays a much
+        cheaper "cache read" instead of full price. Step through one prefix across two calls:</p>
+
+      <div class="viz" id="cache-viz">
+        <div class="viz-title">Same 500-token system prompt, two calls</div>
+        <div class="step-controls">
+          <button class="step-btn" id="cache-prev">◀ Prev</button>
+          <button class="step-btn primary" id="cache-play">▶ Play</button>
+          <button class="step-btn" id="cache-next">Next ▶</button>
+          <button class="step-btn" id="cache-reset">Reset</button>
+          <span class="step-counter" id="cache-counter">Step 1 of 6</span>
+        </div>
+        <div class="step-caption" id="cache-caption"></div>
+        <div class="cache-blocks" id="cache-blocks"></div>
+        <div class="cache-panel" id="cache-panel"></div>
+      </div>
+
+      <div class="card">
+        <h3>Gemini — explicit cache object</h3>
+        <p>You create a <code>CachedContent</code> via <code>client.caches.create(...)</code> and get a handle back
+          (<code>cache.name</code>). Every later call passes <code>cached_content=cache.name</code> to reuse it. You own
+          the object — its TTL, its lifetime, its deletion.</p>
+      </div>
+      <div class="card">
+        <h3>Anthropic — inline flag</h3>
+        <p>You mark a content block itself: <code>"cache_control": {"type": "ephemeral"}</code>. No separate object —
+          the provider caches automatically and reuses it on the next call that shares that exact prefix, within a
+          rolling TTL (default 5 min). Response <code>usage</code> reports
+          <code>cache_creation_input_tokens</code> vs <code>cache_read_input_tokens</code> so you can see the hit.</p>
+      </div>
+      <div class="card">
+        <h3>When it's worth it</h3>
+        <p>Only pays off once the shared prefix is reused across calls — a single one-off prompt gains nothing (cache
+          write itself often costs slightly <em>more</em> than an uncached call). Best fits: chat with a stable long
+          system prompt, agent loops re-sending the same tool definitions/instructions, RAG with a large fixed
+          document.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05f</span>
+        <h2>LiteLLM vs LangChain — why not just call the provider SDK?</h2>
+      </div>
+      <p>Calling the provider SDK directly is fine for a single-provider prototype. It becomes a liability once you
+        need to swap providers, add a fallback model, or track cost/usage centrally — each SDK has its own call
+        shape, message format, and error types.</p>
+      <div class="card">
+        <h3>LiteLLM — thin unified call layer</h3>
+        <p>One function, <code>litellm.completion(...)</code>. Swap the <code>model=</code> string
+          (<code>"gemini/gemini-2.5-flash-lite"</code>, <code>"claude-sonnet-5"</code>, <code>"gpt-4o"</code>) and the
+          call shape and response shape stay identical. Minimal magic — closest thing to a raw SDK that's still
+          provider-agnostic. Built-in retry/fallback/cost-tracking hooks.</p>
+      </div>
+      <div class="card">
+        <h3>LangChain — same unification, plus orchestration</h3>
+        <p><code>init_chat_model(...)</code> gives the same <code>.invoke()</code> interface across providers, but
+          the framework's real value is chains/agents/memory/tool-orchestration built on top. Worth the extra weight
+          once you need those — overkill for a single one-off call.</p>
+      </div>
+      <div class="card">
+        <h3>Rule of thumb</h3>
+        <p>Raw SDK → fine for a prototype tied to one provider. LiteLLM → default choice once you need
+          multi-provider or fallback support without extra framework weight. LangChain → once you're building
+          multi-step chains or agents, not just single calls.</p>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05g</span>
+        <h2>Real-world best practices for LLM calls</h2>
+      </div>
+      <p>Prototype code calls the model and hopes for the best. Production code has to survive rate limits,
+        transient failures, and models that occasionally don't follow instructions.</p>
+      <div class="card">
+        <h3>Retries + backoff</h3>
+        <p>Transient <code>429</code>/<code>5xx</code> responses need exponential backoff and a retry, not an
+          immediate fail — a single blip shouldn't surface as a user-facing error.</p>
+      </div>
+      <div class="card">
+        <h3>Timeouts</h3>
+        <p>Always set an explicit timeout on every call. Without one, a hung request can block a worker
+          indefinitely.</p>
+      </div>
+      <div class="card">
+        <h3>Error handling</h3>
+        <p>Catch rate-limit, auth, and content-filter errors distinctly — each needs a different response (backoff
+          vs. fail-fast vs. flag-for-review). A blanket <code>except Exception</code> hides which one happened.</p>
+      </div>
+      <div class="card">
+        <h3>Rate-limit handling</h3>
+        <p>Respect the provider's <code>Retry-After</code> header, and queue or shed load rather than hammering the
+          API when you're being throttled.</p>
+      </div>
+      <div class="card">
+        <h3>Structured output validation</h3>
+        <p>Validate the model's JSON/tool-call output against a schema (e.g. Pydantic) before trusting it downstream
+          — models occasionally violate schema even with tool-calling enabled.</p>
+      </div>
+      <div class="card">
+        <h3>Logging / observability</h3>
+        <p>Log prompt, response, token usage, and latency per call (redact sensitive data) — without this, failures,
+          cost spikes, and quality regressions are undebuggable after the fact.</p>
+      </div>
+    </section>
+
+    <footer>LLM FOUNDATIONS</footer>
+  </div>
+
+  <script>
+    // ---------- Sampling Lab ----------
+    (function () {
+      const tokens = [
+        { name: 'sunny', p0: 0.35 }, { name: 'cloudy', p0: 0.20 }, { name: 'rainy', p0: 0.15 },
+        { name: 'windy', p0: 0.10 }, { name: 'cold', p0: 0.08 }, { name: 'foggy', p0: 0.05 },
+        { name: 'mild', p0: 0.04 }, { name: 'stormy', p0: 0.02 }, { name: 'dry', p0: 0.01 }
+      ];
+      tokens.forEach(t => t.logit = Math.log(t.p0));
+
+      let mode = 'none';
+      const tempSlider = document.getElementById('temp-slider');
+      const tempVal = document.getElementById('temp-val');
+      const barsEl = document.getElementById('sampling-bars');
+      const logEl = document.getElementById('sampling-log');
+      const modeBtns = { none: document.getElementById('mode-none'), topk: document.getElementById('mode-topk'), topp: document.getElementById('mode-topp') };
+
+      function softmax(idxs, T) {
+        const scaled = idxs.map(i => tokens[i].logit / T);
+        const max = Math.max(...scaled);
+        const exps = scaled.map(s => Math.exp(s - max));
+        const sum = exps.reduce((a, b) => a + b, 0);
+        return exps.map(e => e / sum);
+      }
+
+      function compute() {
+        const T = parseFloat(tempSlider.value);
+        const allIdx = tokens.map((_, i) => i);
+        const reshaped = softmax(allIdx, T); // post-temperature, pre-filter, sums to 1
+        const order = allIdx.slice().sort((a, b) => reshaped[b] - reshaped[a]);
+
+        let keptIdx;
+        if (mode === 'topk') {
+          keptIdx = order.slice(0, 3);
+        } else if (mode === 'topp') {
+          keptIdx = [];
+          let cum = 0;
+          for (const i of order) {
+            keptIdx.push(i);
+            cum += reshaped[i];
+            if (cum >= 0.8) break;
+          }
+        } else {
+          keptIdx = allIdx;
+        }
+
+        const keptSet = new Set(keptIdx);
+        const keptTotal = keptIdx.reduce((s, i) => s + reshaped[i], 0);
+        const final = allIdx.map(i => keptSet.has(i) ? reshaped[i] / keptTotal : 0);
+        return { T, reshaped, keptSet, final };
+      }
+
+      function render() {
+        const { reshaped, keptSet, final } = compute();
+        barsEl.innerHTML = '';
+        tokens.forEach((t, i) => {
+          const row = document.createElement('div');
+          row.className = 'bar-row';
+          const cut = !keptSet.has(i);
+          const pct = (reshaped[i] * 100);
+          const fill = document.createElement('div');
+          fill.className = 'bar-fill' + (cut ? ' cut' : (final[i] > 0.3 ? ' hot' : ' kept'));
+          fill.style.width = Math.max(pct, 3) + '%';
+          fill.textContent = cut ? pct.toFixed(1) + '% — cut' : pct.toFixed(1) + '%';
+          const track = document.createElement('div');
+          track.className = 'bar-track';
+          track.appendChild(fill);
+          const lbl = document.createElement('span');
+          lbl.className = 'bar-lbl';
+          lbl.textContent = t.name;
+          row.appendChild(lbl);
+          row.appendChild(track);
+          barsEl.appendChild(row);
+        });
+      }
+
+      tempSlider.addEventListener('input', () => {
+        tempVal.textContent = parseFloat(tempSlider.value).toFixed(2);
+        render();
+      });
+
+      Object.entries(modeBtns).forEach(([key, btn]) => {
+        btn.addEventListener('click', () => {
+          mode = key;
+          Object.values(modeBtns).forEach(b => b.classList.remove('primary'));
+          btn.classList.add('primary');
+          render();
+        });
+      });
+
+      document.getElementById('draw-btn').addEventListener('click', () => {
+        const { final } = compute();
+        const order = tokens.map((_, i) => i).filter(i => final[i] > 0);
+        let r = Math.random();
+        const orig = r;
+        let cum = 0, winner = order[order.length - 1];
+        for (const i of order) {
+          cum += final[i];
+          if (r <= cum) { winner = i; break; }
+        }
+        logEl.innerHTML = `r = <strong>${orig.toFixed(3)}</strong> → landed on <strong>${tokens[winner].name}</strong> (its odds: ${(final[winner] * 100).toFixed(1)}%)`;
+      });
+
+      render();
+    })();
+
+    // ---------- Attention Matrix Stepper ----------
+    (function () {
+      const wordTokens = ['The', 'trophy', "didn't", 'fit', 'in', 'the', 'suitcase', 'because', 'it', 'was', 'too', 'big'];
+      const n = wordTokens.length;
+      const itIdx = 8, trophyIdx = 1, bigIdx = 11, suitcaseIdx = 6;
+
+      // hand-tuned raw compatibility scores per row (query -> keys), reflecting
+      // mostly-local attention plus the long-range "it" -> "trophy"/"big" link.
+      function rawScores(qi) {
+        const s = new Array(n).fill(0.5);
+        for (let k = 0; k < n; k++) {
+          s[k] = Math.max(0.2, 2 - Math.abs(k - qi) * 0.35); // local bias
+        }
+        s[qi] += 1.5; // self-attention bump
+        if (qi === itIdx) { s[trophyIdx] = 4.2; s[bigIdx] = 3.4; s[suitcaseIdx] = 1.0; }
+        if (qi === bigIdx) { s[trophyIdx] = 3.0; s[itIdx] = 2.2; }
+        return s;
+      }
+
+      function softmaxRow(scores) {
+        const max = Math.max(...scores);
+        const exps = scores.map(s => Math.exp(s - max));
+        const sum = exps.reduce((a, b) => a + b, 0);
+        return exps.map(e => e / sum);
+      }
+
+      const weights = []; // weights[q][k]
+      for (let q = 0; q < n; q++) weights.push(softmaxRow(rawScores(q)));
+
+      const grid = document.getElementById('attn-grid');
+      grid.style.gridTemplateColumns = `80px repeat(${n}, 42px)`;
+
+      // build static cell grid: header row, then n rows of (row-hdr + n cells)
+      const cellRefs = []; // [q][k] -> element
+      const corner = document.createElement('div');
+      grid.appendChild(corner);
+      wordTokens.forEach(w => {
+        const h = document.createElement('div');
+        h.className = 'attn-cell hdr';
+        h.textContent = w;
+        grid.appendChild(h);
+      });
+      for (let q = 0; q < n; q++) {
+        const rh = document.createElement('div');
+        rh.className = 'attn-cell row-hdr';
+        rh.textContent = wordTokens[q];
+        grid.appendChild(rh);
+        const row = [];
+        for (let k = 0; k < n; k++) {
+          const c = document.createElement('div');
+          c.className = 'attn-cell';
+          grid.appendChild(c);
+          row.push(c);
+        }
+        cellRefs.push(row);
+      }
+
+      function paintCell(q, k, on) {
+        const w = weights[q][k];
+        const el = cellRefs[q][k];
+        if (!on) { el.style.background = ''; el.textContent = ''; el.style.color = 'var(--dim)'; return; }
+        const alpha = Math.min(1, w * 1.8);
+        el.style.background = `rgba(57,135,229,${alpha.toFixed(2)})`;
+        el.style.color = alpha > 0.5 ? '#fff' : 'var(--dim)';
+        el.textContent = (w * 100).toFixed(0);
+      }
+
+      function clearAll() {
+        for (let q = 0; q < n; q++) for (let k = 0; k < n; k++) {
+          cellRefs[q][k].classList.remove('active-row', 'winner');
+          paintCell(q, k, false);
+        }
+      }
+
+      const steps = [
+        {
+          caption: `Every token becomes a <strong>query</strong> that will be scored against every token acting as a <strong>key</strong>. Grid starts empty — nothing computed yet.`,
+          run: () => clearAll()
+        },
+        {
+          caption: `Focus on one query: <strong>"it"</strong> (row 9). It computes a raw compatibility score against every key token in the sentence — some scores are high, most are low.`,
+          run: () => {
+            clearAll();
+            for (let k = 0; k < n; k++) cellRefs[itIdx][k].classList.add('active-row');
+          }
+        },
+        {
+          caption: `Softmax turns "it"'s raw scores into attention weights that sum to 1 across the row. Color intensity = weight — this row is now fully computed.`,
+          run: () => {
+            for (let k = 0; k < n; k++) { cellRefs[itIdx][k].classList.add('active-row'); paintCell(itIdx, k, true); }
+          }
+        },
+        {
+          caption: `Read off the winners: <strong>"it"</strong> puts most of its weight on <strong>"trophy"</strong> and <strong>"big"</strong> — not the nearer noun "suitcase". Content-based lookup, not distance-based.`,
+          run: () => {
+            cellRefs[itIdx][trophyIdx].classList.add('winner');
+            cellRefs[itIdx][bigIdx].classList.add('winner');
+          }
+        },
+        {
+          caption: `Every other token repeats the exact same process — its own row of scores, its own softmax. Here's the full matrix once every row has been computed.`,
+          run: () => {
+            for (let q = 0; q < n; q++) for (let k = 0; k < n; k++) paintCell(q, k, true);
+            cellRefs[itIdx][trophyIdx].classList.add('winner');
+            cellRefs[itIdx][bigIdx].classList.add('winner');
+          }
+        },
+        {
+          caption: `n = ${n} tokens → n² = ${n * n} cells, every one of them a small computation. Double the sentence length and this grid doesn't double — it quadruples. That's the O(n²) cost from the card below.`,
+          run: () => { /* matrix stays fully painted */ }
+        }
+      ];
+
+      let step = 0;
+      let playing = false, playTimer = null;
+      const counterEl = document.getElementById('attn-counter');
+      const captionEl = document.getElementById('attn-caption');
+      const prevBtn = document.getElementById('attn-prev');
+      const nextBtn = document.getElementById('attn-next');
+      const playBtn = document.getElementById('attn-play');
+      const resetBtn = document.getElementById('attn-reset');
+
+      function renderStep() {
+        steps[step].run();
+        captionEl.innerHTML = steps[step].caption;
+        counterEl.textContent = `Step ${step + 1} of ${steps.length}`;
+        prevBtn.disabled = step === 0;
+        nextBtn.disabled = step === steps.length - 1;
+      }
+
+      function stopPlay() {
+        playing = false;
+        playBtn.textContent = '▶ Play';
+        if (playTimer) clearInterval(playTimer);
+      }
+
+      prevBtn.addEventListener('click', () => { stopPlay(); if (step > 0) { step--; renderStep(); } });
+      nextBtn.addEventListener('click', () => { stopPlay(); if (step < steps.length - 1) { step++; renderStep(); } });
+      resetBtn.addEventListener('click', () => { stopPlay(); step = 0; renderStep(); });
+      playBtn.addEventListener('click', () => {
+        if (playing) { stopPlay(); return; }
+        playing = true;
+        playBtn.textContent = '⏸ Pause';
+        playTimer = setInterval(() => {
+          if (step >= steps.length - 1) { stopPlay(); return; }
+          step++;
+          renderStep();
+        }, 1600);
+      });
+
+      renderStep();
+    })();
+
+    // ---------- Prompt Caching ----------
+    (function () {
+      const PREFIX = 30, NEW1 = 6, NEW2 = 6; // token block counts (scaled down from real ~500)
+      const total = PREFIX + Math.max(NEW1, NEW2);
+
+      const blocksEl = document.getElementById('cache-blocks');
+      const panelEl = document.getElementById('cache-panel');
+      const toks = [];
+      for (let i = 0; i < total; i++) {
+        const el = document.createElement('div');
+        el.className = 'cache-tok';
+        blocksEl.appendChild(el);
+        toks.push(el);
+      }
+
+      function clearAll() {
+        toks.forEach(t => t.className = 'cache-tok');
+      }
+
+      function setPanel(rows) {
+        panelEl.innerHTML = rows.map(r => `<span>${r[0]}: <strong>${r[1]}</strong></span>`).join('');
+      }
+
+      const steps = [
+        {
+          caption: `<strong>Call 1</strong>: full system prompt (${PREFIX} tokens, shown scaled down) + new user turn (${NEW1} tokens) sent — nothing cached yet, everything billed at full price.`,
+          run: () => {
+            clearAll();
+            for (let i = 0; i < PREFIX + NEW1; i++) toks[i].classList.add('billed');
+            setPanel([['call 1 billed', `${PREFIX + NEW1} tok (full price)`], ['cache', 'none yet']]);
+          }
+        },
+        {
+          caption: `Provider stores the prefix's computed state after responding. Gemini: you hold a <code>CachedContent</code> handle. Anthropic: automatic, keyed by the exact prefix + its <code>cache_control</code> flag.`,
+          run: () => {
+            for (let i = 0; i < PREFIX; i++) toks[i].classList.add('billed', 'stored');
+            setPanel([['call 1 billed', `${PREFIX + NEW1} tok (full price)`], ['cache', 'prefix stored (dashed border)']]);
+          }
+        },
+        {
+          caption: `<strong>Call 2</strong>: same prefix, new user turn (${NEW2} tokens). Request still includes the full prefix — the saving happens on the provider's side, not by omitting it.`,
+          run: () => {
+            for (let i = 0; i < PREFIX; i++) { toks[i].className = 'cache-tok stored'; }
+            for (let i = PREFIX; i < PREFIX + NEW2; i++) toks[i].classList.add('billed');
+            setPanel([['call 2 billed', `${NEW2} tok full + ${PREFIX} tok cache-read`], ['cache', 'prefix stored']]);
+          }
+        },
+        {
+          caption: `Cache hit: the ${PREFIX} prefix tokens are billed as a cheap <strong>cache read</strong> (green), not full price. Only the ${NEW2} new tokens cost full price.`,
+          run: () => {
+            for (let i = 0; i < PREFIX; i++) toks[i].classList.add('cached');
+            for (let i = PREFIX; i < PREFIX + NEW2; i++) toks[i].classList.add('billed');
+            setPanel([
+              ['call 1 cost', `${PREFIX + NEW1} tok full price`],
+              ['call 2 cost', `${NEW2} tok full + ${PREFIX} tok cache-read (~10% price)`]
+            ]);
+          }
+        },
+        {
+          caption: `Same idea, different shape. <strong>Gemini</strong>: explicit object — <code>client.caches.create(...)</code> → pass <code>cached_content=cache.name</code>. <strong>Anthropic</strong>: inline flag on the block — <code>cache_control: {"type":"ephemeral"}</code>, no object to manage.`,
+          run: () => { /* blocks stay as call 2 state, cards below carry this step */ }
+        },
+        {
+          caption: `Net effect across the two calls: prefix paid full price once, then reused at cache-read price on every later call within the TTL. Payoff grows with how many times the prefix gets reused before it expires.`,
+          run: () => {
+            setPanel([
+              ['total billed (2 calls)', `${PREFIX + NEW1 + NEW2} full-price-equivalent tok`],
+              ['actual cost', `${PREFIX + NEW1} full + ${NEW2} full + ${PREFIX} cache-read (~10%)`]
+            ]);
+          }
+        }
+      ];
+
+      let step = 0;
+      let playing = false, playTimer = null;
+      const counterEl = document.getElementById('cache-counter');
+      const captionEl = document.getElementById('cache-caption');
+      const prevBtn = document.getElementById('cache-prev');
+      const nextBtn = document.getElementById('cache-next');
+      const playBtn = document.getElementById('cache-play');
+      const resetBtn = document.getElementById('cache-reset');
+
+      function renderStep() {
+        steps[step].run();
+        captionEl.innerHTML = steps[step].caption;
+        counterEl.textContent = `Step ${step + 1} of ${steps.length}`;
+        prevBtn.disabled = step === 0;
+        nextBtn.disabled = step === steps.length - 1;
+      }
+
+      function stopPlay() {
+        playing = false;
+        playBtn.textContent = '▶ Play';
+        if (playTimer) clearInterval(playTimer);
+      }
+
+      prevBtn.addEventListener('click', () => { stopPlay(); if (step > 0) { step--; renderStep(); } });
+      nextBtn.addEventListener('click', () => { stopPlay(); if (step < steps.length - 1) { step++; renderStep(); } });
+      resetBtn.addEventListener('click', () => { stopPlay(); step = 0; renderStep(); });
+      playBtn.addEventListener('click', () => {
+        if (playing) { stopPlay(); return; }
+        playing = true;
+        playBtn.textContent = '⏸ Pause';
+        playTimer = setInterval(() => {
+          if (step >= steps.length - 1) { stopPlay(); return; }
+          step++;
+          renderStep();
+        }, 1800);
+      });
+
+      renderStep();
+    })();
+  </script>
+</body>
+
+</html>
