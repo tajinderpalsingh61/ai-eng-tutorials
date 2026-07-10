@@ -1,0 +1,1516 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>RAG in Production</title>
+  <style>
+    :root {
+      --bg: #0d0d0d;
+      --panel: #1a1a19;
+      --panel2: #232322;
+      --rule: rgba(255, 255, 255, 0.10);
+      --ink: #ffffff;
+      --dim: #898781;
+      --signal: #3987e5;
+      --signal-soft: rgba(57, 135, 229, 0.12);
+      --accent: #199e70;
+      --amber: #eda100;
+      --flag: #e66767;
+      --flag-soft: rgba(230, 103, 103, 0.10);
+      --sans: system-ui, -apple-system, 'Segoe UI', sans-serif;
+      --mono: ui-monospace, 'SFMono-Regular', 'JetBrains Mono', monospace;
+    }
+
+    * { box-sizing: border-box; }
+
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--ink);
+      font-family: var(--sans);
+      line-height: 1.65;
+      font-size: 17px;
+    }
+
+    .wrap { max-width: 980px; margin: 0 auto; padding: 56px 40px 120px; }
+
+    @media (max-width: 700px) {
+      .wrap { padding: 40px 20px 80px; }
+    }
+
+    header { border-bottom: 1px solid var(--rule); padding-bottom: 20px; margin-bottom: 36px; text-align: center; }
+
+    h1 {
+      font-weight: 700;
+      font-size: 3rem;
+      margin: 0 0 10px;
+      letter-spacing: -.01em;
+      background: linear-gradient(135deg, #3987e5, #86b6ef, #199e70);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      display: inline-block;
+      background-clip: text;
+    }
+
+    .sub { color: var(--dim); font-size: 1.1rem; }
+
+    section { margin-bottom: 56px; }
+
+    .sec-head { display: flex; align-items: baseline; gap: 14px; margin-bottom: 18px; }
+    .sec-num { font-family: var(--mono); font-size: .95rem; color: var(--dim); }
+    h2 { font-weight: 700; font-size: 1.7rem; margin: 0; }
+    h3 { font-size: 1.15rem; margin: 0 0 12px; font-weight: 600; }
+    p { margin: 0 0 12px; }
+    ul, ol { margin: 0 0 12px; padding-left: 22px; }
+    li { margin-bottom: 6px; }
+
+    .card { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; padding: 26px 28px; margin: 18px 0; }
+    .card h3 { margin: 0 0 12px; }
+
+    code, .kw {
+      font-family: var(--mono);
+      background: var(--panel2);
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: .85em;
+      color: #86b6ef;
+    }
+
+    .qbox { background: var(--flag-soft); border: 1px solid rgba(230, 103, 103, 0.25); border-radius: 16px; padding: 16px 20px; margin: 16px 0; }
+    .qbox .tag { font-family: var(--mono); font-size: .7rem; text-transform: uppercase; letter-spacing: .08em; color: var(--flag); font-weight: 600; margin-bottom: 6px; }
+
+    .viz { background: var(--panel); border: 1px solid var(--rule); border-radius: 16px; padding: 24px 28px 26px; margin: 18px 0; }
+    .viz-title { font-size: .78rem; font-family: var(--mono); text-transform: uppercase; letter-spacing: .08em; color: #199e70; margin-bottom: 12px; }
+
+    .step-controls { display: flex; align-items: center; gap: 10px; margin-bottom: 14px; flex-wrap: wrap; }
+    .step-btn {
+      font-family: var(--sans); font-size: .8rem; font-weight: 600;
+      background: var(--panel2); color: var(--ink); border: 1px solid var(--rule);
+      border-radius: 8px; padding: 6px 14px; cursor: pointer;
+      transition: background .15s, border-color .15s;
+    }
+    .step-btn:hover:not(:disabled) { border-color: var(--signal); }
+    .step-btn:disabled { opacity: .4; cursor: not-allowed; }
+    .step-btn.primary { background: var(--signal); border-color: var(--signal); color: #fff; }
+    .step-counter { font-family: var(--mono); font-size: .75rem; color: var(--dim); margin-left: auto; }
+    .step-caption {
+      background: var(--signal-soft); border: 1px solid rgba(57, 135, 229, 0.25);
+      border-radius: 10px; padding: 10px 14px; font-size: .85rem; margin-bottom: 16px; min-height: 1.4em;
+    }
+
+    .bar-row { display: flex; align-items: center; gap: 10px; margin-bottom: 6px; font-family: var(--mono); font-size: .78rem; }
+    .bar-lbl { width: 190px; flex-shrink: 0; color: var(--dim); text-align: right; }
+    .bar-track { flex: 1; background: var(--panel2); border-radius: 4px; overflow: hidden; }
+    .bar-fill {
+      background: var(--signal); color: #fff; padding: 4px 8px; white-space: nowrap;
+      border-radius: 4px; min-width: fit-content; transition: width .5s cubic-bezier(.4,0,.2,1), background .4s ease;
+    }
+    .bar-fill.hot { background: #199e70; }
+    .bar-fill.amber { background: var(--amber); color: #241a00; }
+    .bar-fill.flag { background: var(--flag); }
+    .bar-fill.dim { background: var(--panel2); color: var(--dim); border: 1px dashed var(--rule); }
+
+    .state-panel {
+      font-family: var(--mono); font-size: .8rem; color: var(--dim);
+      border-top: 1px solid var(--rule); padding-top: 12px; margin-top: 12px;
+      display: flex; flex-direction: column; gap: 5px;
+    }
+    .state-panel strong { color: var(--ink); }
+    .state-panel .hi { color: var(--accent); }
+
+    .rank-cols { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 6px; }
+    .rank-cols h4 { font-family: var(--mono); font-size: .72rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin: 0 0 6px; }
+    .rank-cols ol { margin: 0; padding-left: 18px; font-size: .8rem; color: var(--ink); }
+
+    table.data { width: 100%; border-collapse: collapse; margin-top: 10px; }
+    table.data th { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--rule); color: var(--dim); font-size: .8rem; font-weight: 600; }
+    table.data td { padding: 6px 8px; border-bottom: 1px solid var(--rule); font-size: .88rem; }
+
+    .formula {
+      background: var(--panel2); border: 1px solid var(--rule); border-radius: 12px;
+      padding: 18px 22px; margin: 14px 0; text-align: center;
+      font-family: var(--mono); font-size: 1.1rem; color: var(--ink); letter-spacing: .01em;
+      overflow-x: auto;
+    }
+    .formula .eq-name { display: block; font-size: .68rem; text-transform: uppercase; letter-spacing: .08em; color: var(--dim); margin-bottom: 12px; font-family: var(--sans); font-weight: 600; }
+    .formula-eq {
+      display: flex; align-items: center; justify-content: center; flex-wrap: wrap;
+      gap: 8px; row-gap: 14px; line-height: 1.3;
+    }
+    .frac { display: inline-flex; flex-direction: column; vertical-align: middle; text-align: center; margin: 0 2px; font-size: .82em; }
+    .frac .num { padding: 0 8px 5px; border-bottom: 1.5px solid var(--ink); }
+    .frac .den { padding: 5px 8px 0; }
+    .formula-legend { list-style: none; margin: 10px 0 0; padding: 0; font-size: .84rem; color: var(--dim); }
+    .formula-legend li { margin-bottom: 5px; padding-left: 0; }
+    .formula-legend code { color: #86b6ef; }
+
+    .conf-tiles { display: flex; gap: 14px; flex-wrap: wrap; margin: 16px 0 6px; }
+    .conf-tile {
+      width: 68px; height: 68px; border-radius: 10px; background: var(--panel2);
+      border: 2px solid var(--rule); display: flex; align-items: center; justify-content: center;
+      font-family: var(--mono); font-size: .66rem; color: var(--dim); position: relative;
+      text-align: center; padding: 4px; transition: background .4s ease, border-color .4s ease, color .4s ease;
+    }
+    .conf-tile .ring { position: absolute; inset: -7px; border-radius: 15px; opacity: 0; transition: opacity .4s ease; pointer-events: none; }
+    .conf-tile .ring-relevant { border: 2px dashed var(--accent); }
+    .conf-tile .ring-retrieved { border: 2px solid var(--signal); }
+    .conf-tile.show-relevant .ring-relevant { opacity: 1; }
+    .conf-tile.show-retrieved .ring-retrieved { opacity: 1; }
+    .conf-tile.cat-TP { background: rgba(25,158,112,.22); border-color: var(--accent); color: var(--ink); }
+    .conf-tile.cat-FP { background: var(--flag-soft); border-color: var(--flag); color: var(--ink); }
+    .conf-tile.cat-FN { background: rgba(237,161,0,.18); border-color: var(--amber); color: var(--ink); }
+    .conf-tile.cat-TN { background: var(--panel2); border-color: var(--rule); color: var(--dim); }
+    .conf-legend { display: flex; gap: 16px; flex-wrap: wrap; margin-top: 12px; font-family: var(--mono); font-size: .76rem; color: var(--dim); }
+    .conf-legend .lg-dot { width: 11px; height: 11px; border-radius: 3px; display: inline-block; margin-right: 6px; vertical-align: middle; }
+
+    /* diagram (bi-encoder vs cross-encoder) */
+    .diagram-row { display: flex; align-items: center; gap: 14px; font-family: var(--mono); font-size: .78rem; margin: 4px 0 16px; flex-wrap: wrap; }
+    .diagram-box {
+      background: var(--panel2); border: 1px solid var(--rule); border-radius: 10px;
+      padding: 12px 16px; text-align: center; flex: 1; min-width: 120px;
+      transition: border-color .4s ease, background .4s ease;
+    }
+    .diagram-box.joint { border-color: var(--amber); background: rgba(237,161,0,0.10); }
+    .diagram-arrow { color: var(--dim); font-size: 1.2rem; }
+
+    .token-row { display: flex; justify-content: center; gap: 8px; margin: 6px 0; }
+    .token-box {
+      font-family: var(--mono); font-size: .72rem; background: var(--panel2); border: 1px solid var(--rule);
+      border-radius: 6px; padding: 5px 9px; color: var(--dim); transition: border-color .4s ease, color .4s ease, background .4s ease;
+    }
+    .token-box.q { border-color: var(--signal); }
+    .token-box.d { border-color: var(--amber); }
+    .token-box.lit { color: var(--ink); background: rgba(237,161,0,.14); }
+    .token-divider { text-align: center; color: var(--flag); font-family: var(--mono); font-size: .7rem; margin: 8px 0; letter-spacing: .08em; }
+    .cost-row { display: flex; align-items: center; gap: 10px; font-family: var(--mono); font-size: .8rem; margin-bottom: 4px; }
+    .cost-chip { background: var(--panel2); border: 1px solid var(--rule); border-radius: 6px; padding: 3px 10px; }
+    .cost-chip.hot { border-color: var(--flag); color: var(--flag); }
+
+    /* chunk cards */
+    .chunk-card {
+      background: var(--panel2); border: 1px solid var(--rule); border-radius: 10px;
+      padding: 10px 14px; margin-bottom: 8px; font-family: var(--mono); font-size: .76rem; line-height: 1.6;
+      transition: border-color .4s ease, opacity .4s ease, transform .4s ease;
+      opacity: 0; transform: translateY(4px);
+    }
+    .chunk-card.in { opacity: 1; transform: translateY(0); }
+    .chunk-card.bad { border-color: var(--flag); }
+    .chunk-card.good { border-color: var(--accent); }
+    .chunk-card .ov { background: rgba(237,161,0,.28); border-radius: 3px; }
+    .chunk-card .cut { background: rgba(230,103,103,.35); border-radius: 3px; }
+    .chunk-lbl { font-family: var(--mono); font-size: .68rem; text-transform: uppercase; letter-spacing: .06em; color: var(--dim); margin-bottom: 4px; }
+
+    /* dot rows for hit/miss */
+    .dot-row { display: flex; align-items: center; gap: 12px; font-family: var(--mono); font-size: .82rem; margin-bottom: 8px; }
+    .dot-row .q-lbl { width: 60px; color: var(--dim); }
+    .dots { display: flex; gap: 6px; }
+    .dot { width: 16px; height: 16px; border-radius: 50%; background: var(--panel2); border: 1px solid var(--rule); transition: background .4s ease, border-color .4s ease, transform .3s ease; }
+    .dot.hit { background: var(--accent); border-color: var(--accent); transform: scale(1.15); }
+    .dot.miss-all { border-color: var(--flag); }
+
+    /* claim chips */
+    .claim-chip {
+      display: inline-block; padding: 7px 14px; border-radius: 8px; background: var(--panel2);
+      border: 1px solid var(--rule); margin: 4px 8px 4px 0; font-size: .83rem;
+      transition: background .4s ease, border-color .4s ease, opacity .3s ease;
+      opacity: .5;
+    }
+    .claim-chip.shown { opacity: 1; }
+    .claim-chip.ok { border-color: var(--accent); background: rgba(25,158,112,.14); }
+    .claim-chip.bad { border-color: var(--flag); background: var(--flag-soft); }
+
+    .hallu-grid { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0; }
+    .hdot { width: 14px; height: 14px; border-radius: 4px; background: var(--panel2); border: 1px solid var(--rule); transition: background .3s ease; }
+    .hdot.good { background: var(--accent); border-color: var(--accent); }
+    .hdot.bad { background: var(--flag); border-color: var(--flag); }
+
+    footer { font-family: var(--mono); font-size: .75rem; color: var(--dim); text-align: center; margin-top: 60px; }
+  </style>
+</head>
+
+<body>
+  <div class="wrap">
+
+    <header>
+      <h1>RAG in Production</h1>
+      <div class="sub">Retrieval quality → evaluation → scaling → freshness</div>
+    </header>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">01</span>
+        <h2>Why the toy pipeline breaks</h2>
+      </div>
+      <p><a href="../rag-fundamentals/rag-fundamentals.html" style="color:var(--signal);">RAG Fundamentals</a>
+        built a working pipeline — chunk → embed → cosine search → stuff context → generate — and proved it on
+        4 documents. It worked because 4 documents is a toy: every design shortcut that's invisible at that
+        scale becomes a real, user-facing bug the moment the corpus is a real company's real documents.
+        Four shortcuts in particular, each traceable to a specific design choice made for simplicity:</p>
+      <div class="card">
+        <ul style="margin-bottom:0;">
+          <li><strong>Pure vector search misses exact matches.</strong> The fundamentals pipeline retrieves by
+            meaning alone. That's the right default for "what's your refund policy," where the words in the
+            question don't need to literally appear in the answer — but it quietly fails for anything with an
+            exact token that matters: an error code, a SKU, a person's name. Embeddings capture <em>meaning</em>,
+            not keywords, so a query for an error code or SKU can score <em>worse</em> than a semantically
+            related but wrong chunk.</li>
+          <li><strong>Nobody measures whether retrieval is actually good.</strong> The fundamentals pipeline
+            never asked "did we retrieve the right thing?" — it just retrieved <em>something</em> and moved on.
+            Without a number to track, a change to chunk size or embedding model ships and quality regressions
+            surface only when a user complains, not before.</li>
+          <li><strong><code>O(n)</code> cosine scan over every vector doesn't scale.</strong> Comparing the
+            query against every stored vector one by one is fine at 4 documents and fine at 4,000 — it stops
+            being fine somewhere past a few thousand chunks, where every query starts taking noticeably longer.</li>
+          <li><strong>The index goes stale.</strong> The fundamentals pipeline embeds once and never revisits
+            that embedding. The moment a source document changes, the stored vector is now describing something
+            that no longer exists — and there's no signal anywhere that it happened.</li>
+        </ul>
+      </div>
+      <p>Four levers fix each of these, one-to-one and in order: hybrid search, evaluation, ANN indexing, and
+        freshness.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">02</span>
+        <h2>Hybrid search: BM25 + vector + Reciprocal Rank Fusion</h2>
+      </div>
+      <p>A query for <code>"E-4521"</code> should retrieve the chunks that literally mention that error code.
+        But an embedding model represents <em>meaning</em> — "error code" plus some digits doesn't have strong
+        semantic neighbors, so a chunk about "checkout failing under load" can out-score it on cosine
+        similarity even though it never mentions the code.</p>
+      <div class="card">
+        <h3>Fix: run two retrievers, fuse the rankings</h3>
+        <ul>
+          <li>Vector search alone struggles here because it's optimized for exactly one kind of question —
+            "which chunk means roughly the same thing as this query" — and E-4521 isn't a meaning, it's a
+            token. So bring in a second retriever that's good at exactly the thing vector search is bad at:
+            matching tokens.</li>
+          <li><span class="kw">BM25</span> is that retriever — a lexical/keyword scorer descended from
+            classic search-engine ranking.</li>
+          <li><strong>The intuition:</strong> a chunk is relevant if it repeats the query's words, but not
+            all words are equally informative. "the" appearing in every chunk tells you nothing; "E-4521"
+            appearing in two chunks out of six is a strong signal.</li>
+          <li>That's what <span class="kw">IDF</span> (inverse document frequency) encodes — the rarer a
+            term is across the whole corpus, the more weight a match on it gets.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">BM25 score for one chunk, given a query</span>
+          <div class="formula-eq">
+            <span>score = Σ<sub>t</sub> IDF(t) ·</span>
+            <span class="frac">
+              <span class="num">f · (k₁+1)</span>
+              <span class="den">f + k₁·(1 − b + b·L)</span>
+            </span>
+          </div>
+        </div>
+        <ul class="formula-legend" style="margin-top:2px;">
+          <li><code>t</code> — one term (word) from the query. The sum runs over every query term, one at a time.</li>
+          <li><code>IDF(t)</code> — higher for rare terms across the corpus, near zero for common ones ("the," "and").</li>
+          <li><code>f</code> — short for <em>term frequency</em>: how many times <code>t</code> shows up in this chunk.</li>
+          <li><code>k₁</code>, <code>b</code> — tuning constants (typically 1.2-2.0 and 0.75) that control how quickly extra repeats stop mattering, and how much long chunks get penalized.</li>
+          <li><code>L</code> — short for <code>|chunk| / avg_len</code>: this chunk's length relative to the corpus average (1.0 = exactly average length) — the length-normalization term, so a long chunk can't win purely by containing more words.</li>
+        </ul>
+        <ul>
+          <li>Now there are two ranked lists for the same query — one from BM25, one from cosine similarity —
+            and they can disagree completely, because they're measuring different things.</li>
+          <li><span class="kw">Reciprocal Rank Fusion (RRF)</span> combines them without ever comparing their
+            raw scores directly, which matters because BM25 scores and cosine similarities live on completely
+            different numeric scales (a BM25 score of 8 and a cosine similarity of 0.44 aren't comparable
+            numbers).</li>
+          <li>RRF sidesteps that by only ever looking at <em>rank position</em>, never the raw score.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Reciprocal Rank Fusion</span>
+          <div class="formula-eq">
+            <span>RRF(chunk) = Σ<sub>list</sub></span>
+            <span class="frac"><span class="num">1</span><span class="den">k + rank<sub>list</sub>(chunk)</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><code>rank<sub>list</sub>(chunk)</code> — this chunk's position in one retriever's ranked list (0 = top result).</li>
+          <li><code>k</code> — a damping constant, commonly 60. Without it, the #1 result in one list would dominate the fused score regardless of how the other list ranked it; <code>k</code> flattens that gap so a chunk needs to rank well <em>consistently</em>, not just spike in one list.</li>
+          <li>Sum is taken over both retrievers' lists — a chunk absent from a list simply contributes 0 from that term.</li>
+        </ul>
+      </div>
+
+      <div class="viz" id="rrf-viz">
+        <div class="viz-title">Hybrid search + RRF — query: "what does error E-4521 mean"</div>
+        <div class="step-controls">
+          <button class="step-btn" id="rrf-prev">◀ Prev</button>
+          <button class="step-btn primary" id="rrf-play">▶ Play</button>
+          <button class="step-btn" id="rrf-next">Next ▶</button>
+          <button class="step-btn" id="rrf-reset">Reset</button>
+          <span class="step-counter" id="rrf-counter"></span>
+        </div>
+        <div class="step-caption" id="rrf-caption"></div>
+        <div id="rrf-bars"></div>
+        <div id="rrf-ranks"></div>
+      </div>
+      <p>Fused ranking correctly surfaces both E-4521 chunks first, ahead of the semantically-similar-but-wrong
+        "checkout fails under load" chunk that pure vector search alone would have ranked #1.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">03</span>
+        <h2>Reranking</h2>
+      </div>
+      <p>Hybrid search from section 02 is fast because both retrievers score every candidate in isolation —
+        BM25 looks only at the chunk's own words, the embedding was computed once and stored long before this
+        query ever arrived. That speed has a cost: neither retriever ever actually reads the query <em>and</em>
+        the chunk side by side. RRF then fuses two independently-computed guesses, which is a reasonable
+        approximation but still a guess — it can't catch a chunk that's the right answer for subtle reasons
+        neither BM25's keyword overlap nor cosine similarity would surface.</p>
+      <p>So retrieve wider than you need (e.g. top 20, instead of the top 2-3 that'll actually go in the
+        prompt), then <span class="kw">rerank</span> that shortlist with a slower, more accurate model that
+        looks at the query and each candidate <em>together</em>. Reading them jointly is strictly more
+        informative than reading them separately — the tradeoff is that it can't be precomputed, so it only
+        makes sense on a small shortlist, never the whole corpus.</p>
+
+      <div class="card">
+        <h3>How a bi-encoder actually works</h3>
+        <p>A bi-encoder is a transformer — the same architecture family as the chat model, but trained to
+          output an embedding instead of generated text — run <em>twice</em>, on two completely separate
+          inputs, with no path for information to cross between the two runs:</p>
+        <div class="formula">
+          <span class="eq-name">Two independent forward passes</span>
+          <div class="formula-eq">
+            <span>q_vec = Encoder(query)</span>
+          </div>
+          <div class="formula-eq" style="margin-top:8px;">
+            <span>d_vec = Encoder(document)</span>
+          </div>
+          <div class="formula-eq" style="margin-top:8px;">
+            <span>score = cosine_similarity(q_vec, d_vec)</span>
+          </div>
+        </div>
+        <ul style="margin-bottom:0;">
+          <li>The query's tokens are turned into embeddings, passed through the transformer's self-attention
+            layers, and pooled (usually the <code>[CLS]</code> token's final hidden state, or a mean over
+            all token positions) into one fixed-size vector, <code>q_vec</code>.</li>
+          <li>The document goes through the exact same encoder, independently, producing <code>d_vec</code>.</li>
+          <li>Inside the transformer, self-attention lets query tokens attend to <em>other query tokens</em>
+            — it never sees the document at all, and vice versa.</li>
+          <li>The two vectors only ever meet afterward, outside the model, as a single dot product.</li>
+          <li><strong>Why caching works:</strong> <code>Encoder(document)</code> doesn't depend on the query
+            in any way, so nothing about it needs to be recomputed when a new query arrives — document
+            vectors can be computed once, offline, and reused for every future query. This is exactly what
+            <code>embed()</code> in the fundamentals notebook does, and what section 02's vector search here
+            is built on.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>How a cross-encoder actually works</h3>
+        <p>A cross-encoder is the same transformer architecture, but given a single concatenated input instead
+          of two separate ones:</p>
+        <div class="formula">
+          <span class="eq-name">One joint forward pass</span>
+          <div class="formula-eq">
+            <span>input = [CLS] query [SEP] document [SEP]</span>
+          </div>
+          <div class="formula-eq" style="margin-top:8px;">
+            <span>score = ClassifierHead( Encoder(input) )</span>
+          </div>
+        </div>
+        <ul style="margin-bottom:0;">
+          <li>Every token from the query and every token from the document now sit inside the <em>same</em>
+            sequence, so every self-attention layer computes attention scores between <em>all</em> token
+            pairs — a query token can directly attend to a specific document token, weigh how much it
+            matters, and pass that interaction forward into deeper layers.</li>
+          <li>The <code>[CLS]</code> token's final hidden state (now shaped by attending across the whole
+            query-document pair) gets fed into a small classifier head that outputs a single relevance score.</li>
+          <li><strong>Why it's more expressive:</strong> a bi-encoder is mathematically forced to compress
+            all of a document's meaning into one fixed vector <em>before</em> it ever knows what question
+            will be asked of it; a cross-encoder gets to look at the document <em>in light of</em> the
+            specific query, token by token, before deciding anything.</li>
+          <li><strong>Why it's slow:</strong> <code>Encoder(input)</code> takes the query as part of its
+            input, so this forward pass cannot be run until the query exists, and cannot be cached for reuse
+            against a different query — the cost is exactly what breaks precomputation.</li>
+        </ul>
+      </div>
+
+      <div class="viz" id="rerank-viz">
+        <div class="viz-title">Bi-encoder (fast, independent) vs. cross-encoder (slow, joint)</div>
+        <div class="step-controls">
+          <button class="step-btn" id="rerank-prev">◀ Prev</button>
+          <button class="step-btn primary" id="rerank-play">▶ Play</button>
+          <button class="step-btn" id="rerank-next">Next ▶</button>
+          <button class="step-btn" id="rerank-reset">Reset</button>
+          <span class="step-counter" id="rerank-counter"></span>
+        </div>
+        <div class="step-caption" id="rerank-caption"></div>
+        <div id="rerank-diagram"></div>
+        <div id="rerank-attn"></div>
+        <div id="rerank-bars"></div>
+        <div class="state-panel" id="rerank-cost"></div>
+      </div>
+
+      <div class="qbox">
+        <div class="tag">One-line takeaway</div>
+        Separate passes + late dot-product = fast but blind to how query and document actually relate.
+        One joint pass with shared attention = slow but catches relationships (negation, indirect phrasing,
+        outright contradiction) a vector comparison structurally cannot see.
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">04</span>
+        <h2>Chunking strategy tradeoffs</h2>
+      </div>
+      <ul>
+        <li>Every technique so far assumes the corpus is already split into reasonably-sized chunks — but
+          <em>how</em> it got split determines what's even possible to retrieve.</li>
+        <li>A chunk is the unit retrieval operates on: if a fact spans a chunk boundary, no amount of clever
+          hybrid search or reranking can retrieve it whole, because it was never stored whole.</li>
+        <li>The fundamentals notebook used fixed-size character chunking, which is simple but blind to
+          sentence and paragraph structure. In production this is a real tuning knob, not an afterthought —
+          the same source paragraph splits very differently depending on strategy, and where the boundary
+          lands decides what survives retrieval intact:</li>
+      </ul>
+
+      <div class="viz" id="chunk-viz">
+        <div class="viz-title">Same paragraph, three chunking strategies</div>
+        <div class="step-controls">
+          <button class="step-btn" id="chunk-prev">◀ Prev</button>
+          <button class="step-btn primary" id="chunk-play">▶ Play</button>
+          <button class="step-btn" id="chunk-next">Next ▶</button>
+          <button class="step-btn" id="chunk-reset">Reset</button>
+          <span class="step-counter" id="chunk-counter"></span>
+        </div>
+        <div class="step-caption" id="chunk-caption"></div>
+        <div id="chunk-cards"></div>
+      </div>
+      <p><strong>Overlap</strong> (e.g. 10-20% of chunk size) stops a fact from landing exactly on a chunk
+        boundary and becoming unretrievable from either side — visible above as the amber shared region
+        between consecutive chunks. Too much overlap wastes storage and duplicates results; too little risks
+        losing facts that straddle a cut.</p>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">05</span>
+        <h2>Evaluation — retrieval metrics</h2>
+      </div>
+      <ul>
+        <li>Everything in sections 02-04 was a design choice — BM25 weight vs vector weight, chunk size,
+          whether to rerank. Design choices need a number attached to them, or "we changed the chunking
+          strategy" is just a guess about whether things got better.</li>
+        <li>That number comes from building a small hand-labeled <span class="kw">eval set</span>: a list of
+          <code>(query, known-relevant chunk)</code> pairs where a human has already decided what the
+          "correct" retrieval result is.</li>
+        <li>Every metric below runs the retriever against every query in that eval set and scores how well
+          the ranked list it returned matches what should have come back.</li>
+      </ul>
+      <p>If you've done any classification work, Precision and Recall aren't new — they're the same
+        <span class="kw">TP / FP / FN / TN</span> confusion matrix from binary classification, just applied
+        to "was this chunk retrieved" instead of "did the model predict positive." The mapping is exact:</p>
+
+      <div class="viz" id="conf-viz">
+        <div class="viz-title">Confusion matrix, applied to retrieval — 6 chunks, 1 query</div>
+        <div class="step-controls">
+          <button class="step-btn" id="conf-prev">◀ Prev</button>
+          <button class="step-btn primary" id="conf-play">▶ Play</button>
+          <button class="step-btn" id="conf-next">Next ▶</button>
+          <button class="step-btn" id="conf-reset">Reset</button>
+          <span class="step-counter" id="conf-counter"></span>
+        </div>
+        <div class="step-caption" id="conf-caption"></div>
+        <div class="conf-tiles" id="conf-tiles"></div>
+        <div id="conf-legend"></div>
+        <div class="state-panel" id="conf-formula"></div>
+      </div>
+      <ul>
+        <li>Two independent boundaries drawn over the same 6 chunks — <em>ground truth</em> (is it actually
+          relevant to this query?) and <em>system output</em> (did the retriever put it in the top k?) —
+          and every chunk falls into exactly one of four boxes depending on which side of each boundary
+          it's on.</li>
+        <li><code>TN</code> is normally the biggest bucket by far (most of the corpus is irrelevant to any
+          given query and correctly left out), which is exactly why it's dropped from both formulas below —
+          a metric that rewarded "correctly ignored" would be nearly 1.0 for almost any retriever and say
+          nothing useful.</li>
+      </ul>
+
+      <div class="card">
+        <h3>Precision@k — of what you handed back, how much was actually relevant?</h3>
+        <ul>
+          <li>Imagine a retriever that, paranoid about missing anything, just returns every chunk in the
+            corpus for every query. It would never miss the relevant one — perfect recall — but the prompt
+            would be drowned in noise.</li>
+          <li>Precision is the metric that punishes exactly that: it only cares about the <em>purity</em> of
+            what came back, not whether the right thing was in there somewhere.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Precision at k</span>
+          <div class="formula-eq">
+            <span>Precision@k =</span>
+            <span class="frac"><span class="num">TP</span><span class="den">TP + FP</span></span>
+            <span>=</span>
+            <span class="frac"><span class="num">relevant chunks in top k</span><span class="den">k</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><code>TP</code> — relevant chunks the system retrieved. <code>FP</code> — irrelevant chunks it retrieved anyway.</li>
+          <li><code>TP + FP</code> is just <code>k</code> — every retrieved chunk is either a true positive or a false positive, so the denominator is always the size of the retrieved set.</li>
+          <li>Averaged across every query in the eval set to get one final Precision@k number for the system.</li>
+        </ul>
+        <p>Retrieving 1 relevant chunk inside a top-3 list scores <code>1/3</code> — even when that one chunk
+          is exactly the right one — because the other two slots were wasted. That's the tradeoff Precision
+          exposes: a small, tight <code>top_k</code> naturally scores higher on precision than a wide one.</p>
+      </div>
+
+      <div class="card">
+        <h3>Recall@k — of what's relevant, how much did you actually retrieve?</h3>
+        <ul>
+          <li>Now flip the question. A retriever that returns exactly one, extremely precise chunk per query
+            looks great on precision — but if that one chunk is the <em>wrong</em> one, the user gets no
+            answer at all.</li>
+          <li>Recall is the check on precision: did the system find the relevant chunk <em>somewhere</em> in
+            what it returned, regardless of how much else came along with it?</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Recall at k</span>
+          <div class="formula-eq">
+            <span>Recall@k =</span>
+            <span class="frac"><span class="num">TP</span><span class="den">TP + FN</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><code>TP</code> — relevant chunks retrieved. <code>FN</code> — relevant chunks that existed but were missed (not in the top k).</li>
+          <li><code>TP + FN</code> is the total count of chunks that were actually relevant to the query — the denominator doesn't depend on <code>k</code> at all, unlike Precision's.</li>
+          <li>In our eval set (one known-relevant chunk per query) this collapses to the simple binary case: found it → <code>1/(1+0)=1</code>, missed it → <code>0/(0+1)=0</code>. Averaged across the eval set, so <code>Recall@3 = 0.667</code> means "found in the top 3 for two-thirds of the queries tested."</li>
+        </ul>
+        <ul>
+          <li>Precision and Recall are in direct tension: widening <code>top_k</code> can only help or hold
+            Recall steady (more chances to include the right chunk) while it can only hurt or hold Precision
+            steady (more chances to include noise).</li>
+          <li>Neither number alone tells the full story — that's why production systems track both, not one.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>MRR — Recall says "found it," but found it <em>where</em>?</h3>
+        <ul>
+          <li>Recall@3 treats a hit at rank 1 and a hit at rank 3 as the same success. But they're not the
+            same to the generation step downstream: section 07 shows that a chunk buried in the middle of a
+            stuffed context window gets less attention from the LLM than one at the front.</li>
+          <li>So a retrieval metric that rewards landing <em>near the top</em>, not just landing somewhere
+            in the list, is measuring something Recall can't see.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Mean Reciprocal Rank</span>
+          <div class="formula-eq">
+            <span>MRR = average of</span>
+            <span class="frac"><span class="num">1</span><span class="den">rank of first relevant result</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li>Rank 1 → contributes <code>1/1 = 1.0</code>. Rank 2 → <code>1/2 = 0.5</code>. Rank 5 → <code>1/5 = 0.2</code> — a steep, deliberate penalty for landing further down.</li>
+          <li>A query where nothing relevant was found in the retrieved list contributes <code>0</code>.</li>
+          <li>"Mean" — average this reciprocal rank across every query in the eval set.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>NDCG@k — MRR, generalized past "there's exactly one right answer"</h3>
+        <ul>
+          <li>MRR only knows about the <em>first</em> relevant hit, and only knows "relevant" as yes/no. Real
+            eval sets are often messier: a query might have two or three acceptable chunks, and some might
+            be a better answer than others (a chunk that directly answers the question vs. one that's
+            merely on-topic).</li>
+          <li><span class="kw">NDCG</span> — Normalized Discounted Cumulative Gain — handles both: it sums
+            up <em>every</em> relevant hit in the list (not just the first), discounts each one by how far
+            down the list it landed, and then normalizes against the best possible ordering so the number
+            is comparable across queries even when they have different numbers of relevant chunks.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Discounted Cumulative Gain at k</span>
+          <div class="formula-eq">
+            <span>DCG@k = Σ<sub>i=1..k</sub></span>
+            <span class="frac"><span class="num">relevance<sub>i</sub></span><span class="den">log₂(i + 1)</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><code>relevance<sub>i</sub></code> — how relevant the result at position <code>i</code> is (0/1 for binary relevance, or a graded score like 0-3 for "a little / very relevant").</li>
+          <li><code>log₂(i + 1)</code> — the discount. At <code>i=1</code> it's <code>log₂2=1</code> (no discount); by <code>i=3</code> it's <code>log₂4=2</code> (half credit) — later positions count for steadily less, but never hit zero.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Normalized DCG at k</span>
+          <div class="formula-eq">
+            <span>NDCG@k =</span>
+            <span class="frac"><span class="num">DCG@k</span><span class="den">IDCG@k</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><code>IDCG@k</code> — the DCG of the <em>ideal</em> ordering: same relevant chunks, but sorted so the most relevant one comes first. This is the best score physically possible for that query.</li>
+          <li>Dividing by it turns a raw, corpus-dependent DCG number into a 0-1 score that means the same thing — "how close to the best possible ordering" — for every query, regardless of how many relevant chunks it happened to have.</li>
+        </ul>
+      </div>
+
+      <div class="viz" id="metrics-viz">
+        <div class="viz-title">Worked example — 3 queries, top-3 retrieved each</div>
+        <div class="step-controls">
+          <button class="step-btn" id="metrics-prev">◀ Prev</button>
+          <button class="step-btn primary" id="metrics-play">▶ Play</button>
+          <button class="step-btn" id="metrics-next">Next ▶</button>
+          <button class="step-btn" id="metrics-reset">Reset</button>
+          <span class="step-counter" id="metrics-counter"></span>
+        </div>
+        <div class="step-caption" id="metrics-caption"></div>
+        <div id="metrics-dots"></div>
+        <div class="state-panel" id="metrics-state"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">06</span>
+        <h2>Evaluation — generation metrics</h2>
+      </div>
+      <ul>
+        <li>Section 05's metrics can all score perfectly — the exact right chunk retrieved at rank 1 — and
+          the generated answer can still be wrong.</li>
+        <li>Retrieval only checks whether the right raw material made it into the prompt; it says nothing
+          about what the model actually <em>did</em> with that material once it got there.</li>
+        <li>That's a second, independent failure surface, and it needs its own metrics.</li>
+      </ul>
+
+      <div class="card">
+        <h3>Faithfulness / groundedness — did the answer stick to the source?</h3>
+        <ul>
+          <li>An LLM generating from context can still drift — filling gaps with what sounds plausible from
+            its training data rather than what the retrieved text actually says.</li>
+          <li>Faithfulness catches this by breaking the answer into its individual factual claims and
+            checking each one, independently, against the context: is this specific claim actually stated
+            (or directly implied) there, or did the model add it?</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Faithfulness</span>
+          <div class="formula-eq">
+            <span>Faithfulness =</span>
+            <span class="frac"><span class="num">claims supported by the context</span><span class="den">total claims in the answer</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li>"Supported" is usually judged by a second LLM call acting as a grader — shown the context and one claim at a time, asked a strict yes/no.</li>
+          <li>A score below 1.0 means at least one claim in the answer isn't backed by anything that was retrieved — the definition of a hallucination in the RAG setting.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Answer relevancy — grounded is necessary, but is it also on-topic?</h3>
+        <ul>
+          <li>Faithfulness alone has a blind spot: an answer can be built entirely from real sentences in
+            the context and still not address what was asked — for instance quoting a true, context-backed
+            fact that has nothing to do with the question.</li>
+          <li>Answer relevancy checks the other direction: does this answer actually respond to <em>this</em>
+            query? The trick is there's no direct way to score "answers this question" — so it's measured
+            indirectly, by working backwards.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Answer relevancy</span>
+          Answer relevancy = average ( cosine_sim ( embed(original query), embed(generated question<sub>i</sub>) ) )
+        </div>
+        <ul class="formula-legend">
+          <li>An LLM reads the answer and generates <code>n</code> plausible questions it would be a good response to — reverse-engineering "what was this answer trying to answer?"</li>
+          <li>Each generated question is embedded and compared to the original query's embedding with cosine similarity (the same operation from RAG Fundamentals section 03) — high similarity means the answer's implied question matches the one actually asked.</li>
+          <li>Averaged over the <code>n</code> generated questions into one score per answer.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Hallucination rate — faithfulness, rolled up across a whole eval set</h3>
+        <ul>
+          <li>A single faithfulness score describes one answer. Production needs a number that describes the
+            system over time — is quality holding steady, or slipping?</li>
+          <li>Pick a faithfulness threshold (commonly "must be 1.0, fully supported"), run it over every
+            answer in an eval set, and count how often it fails.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">Hallucination rate</span>
+          <div class="formula-eq">
+            <span>Hallucination rate =</span>
+            <span class="frac"><span class="num">answers failing the faithfulness threshold</span><span class="den">total answers evaluated</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li>Tracked over time like any other production metric — a sudden jump with retrieval metrics unchanged (section 05) points at the prompt template or context handling, not retrieval, since retrieval quality didn't move.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>LLM-as-judge — the mechanism behind every metric above, made explicit</h3>
+        <ul>
+          <li>Faithfulness, answer relevancy, and hallucination rate all quietly rely on the same trick:
+            instead of computing a score with a formula, hand the question to a second LLM call and ask it
+            to judge.</li>
+          <li>"Is this claim supported by this context?" is not something you can compute with arithmetic —
+            it requires reading comprehension.</li>
+          <li><span class="kw">LLM-as-judge</span> is the general pattern name for that: a grading prompt, a
+            rubric, and a model call that returns a score instead of an answer.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">The general shape</span>
+          judge_score = LLM( grading_prompt ⊕ rubric ⊕ (question, answer, context) )
+        </div>
+        <ul class="formula-legend">
+          <li><strong>Strength:</strong> no reference answer required, handles open-ended questions, catches semantic issues (contradiction, unsupported claims) that word-overlap metrics structurally can't see.</li>
+          <li><strong>Weakness:</strong> costs an API call per eval (real money, real latency, at eval-set scale), inherits the judge model's own blind spots and biases, and is only as reliable as the rubric — a vague grading prompt produces a vague, inconsistent judge.</li>
+          <li><strong>Practical mitigation:</strong> use a strict rubric with few-shot examples, prefer structured output (a number or enum, not free text) so scores are comparable run to run, and spot-check the judge against human ratings occasionally rather than trusting it blindly forever.</li>
+        </ul>
+      </div>
+
+      <div class="card">
+        <h3>Classical NLG metrics (BLEU, ROUGE, METEOR) — only when a reference answer exists</h3>
+        <ul>
+          <li>Before LLM-as-judge, machine translation and summarization used n-gram overlap metrics: given
+            a <em>reference answer</em> written by a human, count how many words or word-sequences the
+            generated answer shares with it.</li>
+          <li>They still show up in RAG evals when a gold reference answer happens to exist for every query
+            — but that's a real precondition, and RAG question-answering usually doesn't have one, because
+            there are many equally correct ways to phrase the same true answer.</li>
+        </ul>
+        <div class="formula">
+          <span class="eq-name">ROUGE-N (recall-oriented, the common RAG-adjacent variant)</span>
+          <div class="formula-eq">
+            <span>ROUGE-N =</span>
+            <span class="frac"><span class="num">matching n-grams (generated ∩ reference)</span><span class="den">total n-grams in the reference</span></span>
+          </div>
+        </div>
+        <ul class="formula-legend">
+          <li><strong>BLEU</strong> — precision-oriented sibling of ROUGE (matching n-grams over total n-grams <em>in the generated text</em>, with a penalty for overly short outputs). Born for machine translation, where there's exactly one reference sentence to match.</li>
+          <li><strong>METEOR</strong> — extends the idea with stemming and synonym matching, so "refund" and "reimbursement" can partially match instead of counting as a total miss — an improvement, but still fundamentally counting shared words, not verifying facts.</li>
+          <li><strong>Why they're a weaker fit for RAG:</strong> "refunds are accepted within 60 days" and "you get 60 days to request a refund" share almost no n-grams and would score low, despite being the same correct answer — the exact failure mode faithfulness (LLM-as-judge) doesn't have, since it reads for meaning, not surface overlap.</li>
+        </ul>
+      </div>
+
+      <div class="viz" id="genmetrics-viz">
+        <div class="viz-title">Faithfulness → answer relevancy → hallucination rate, worked</div>
+        <div class="step-controls">
+          <button class="step-btn" id="genmetrics-prev">◀ Prev</button>
+          <button class="step-btn primary" id="genmetrics-play">▶ Play</button>
+          <button class="step-btn" id="genmetrics-next">Next ▶</button>
+          <button class="step-btn" id="genmetrics-reset">Reset</button>
+          <span class="step-counter" id="genmetrics-counter"></span>
+        </div>
+        <div class="step-caption" id="genmetrics-caption"></div>
+        <div id="genmetrics-body"></div>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">07</span>
+        <h2>Failure modes</h2>
+      </div>
+      <ul>
+        <li>Every section so far fixed one specific weak point. But a production RAG system fails in a
+          handful of recurring shapes that don't map cleanly to any single component — they emerge from how
+          retrieval and generation interact.</li>
+        <li>Recognizing the shape of a failure is what tells you which section above actually fixes it.</li>
+      </ul>
+
+      <div class="viz" id="lim-viz">
+        <div class="viz-title">Lost-in-the-middle — attention weight by position in context</div>
+        <div class="step-controls">
+          <button class="step-btn" id="lim-prev">◀ Prev</button>
+          <button class="step-btn primary" id="lim-play">▶ Play</button>
+          <button class="step-btn" id="lim-next">Next ▶</button>
+          <button class="step-btn" id="lim-reset">Reset</button>
+          <span class="step-counter" id="lim-counter"></span>
+        </div>
+        <div class="step-caption" id="lim-caption"></div>
+        <div id="lim-svg-holder"></div>
+      </div>
+
+      <div class="qbox">
+        <div class="tag">Stale index</div>
+        <ul style="margin-bottom:0;">
+          <li>The embedding stored for a chunk is a snapshot of that text at the moment it was indexed — it
+            isn't linked to the live document in any way that would notice a later edit.</li>
+          <li>So a source document changes, the vector store still holds the old embedding pointing at old
+            text, and the retriever confidently returns outdated information with no error, no warning,
+            nothing that would tell you it happened.</li>
+          <li>This is exactly the freshness problem section 09 solves — a retrieval system is only as
+            current as its last (re-)index.</li>
+        </ul>
+      </div>
+      <div class="qbox">
+        <div class="tag">Hallucinated citations</div>
+        <ul style="margin-bottom:0;">
+          <li>The model cites a source that either wasn't retrieved or doesn't say what the citation
+            claims.</li>
+          <li>This happens because "cite your sources" is an instruction the model follows the same way it
+            follows any other instruction — by generating plausible-looking text — and a plausible-looking
+            citation isn't the same thing as a real one.</li>
+          <li>Faithfulness checking (section 06) catches this at the answer level by verifying every claim
+            against what was actually retrieved, not by trusting the citation itself.</li>
+        </ul>
+      </div>
+      <div class="qbox">
+        <div class="tag">Retrieval-generation mismatch</div>
+        <ul style="margin-bottom:0;">
+          <li>The most frustrating failure mode, because retrieval did its job — the right chunk is sitting
+            right there in the context — and the answer is still wrong.</li>
+          <li>The break happens downstream: the prompt template buries the chunk among too many others,
+            truncates it before the key sentence, or the model simply defaults to its own parametric
+            knowledge instead of the provided context.</li>
+          <li>This is why retrieval metrics (section 05) and generation metrics (section 06) have to be
+            tracked as two separate numbers — a good Recall@k with a bad faithfulness score is the
+            fingerprint of exactly this failure.</li>
+        </ul>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">08</span>
+        <h2>Scaling &amp; infra</h2>
+      </div>
+      <ul>
+        <li>Every retriever in this tutorial so far — the fundamentals notebook's <code>VectorStore</code>,
+          section 02's hybrid search — compares the query against <em>every single</em> stored vector, every
+          query. That's <code>O(n)</code>: double the corpus, double the work per query.</li>
+        <li>Fine for a demo, unworkable past roughly 10k–100k vectors depending on latency budget, because
+          query time keeps growing in lockstep with how much data has been indexed — a problem no clever
+          ranking formula fixes, since the issue is the number of comparisons, not how they're scored.</li>
+      </ul>
+      <ul>
+        <li>The fix is to stop comparing against everything, using structure instead of brute force to skip
+          most of the corpus per query.</li>
+        <li><span class="kw">HNSW</span> (Hierarchical Navigable Small World) builds a multi-layer graph
+          over the vectors at index time: the top layer has only a few nodes with long-range links, letting
+          a query jump close to the right neighborhood in just a few hops; each layer down adds more nodes
+          with shorter, denser links for progressively finer-grained search — like knowing a city's highway
+          system gets you to the right district in a couple of turns, and only then do you need
+          street-level directions.</li>
+        <li>That's the intuition behind why query time grows with <code>log n</code> instead of <code>n</code>
+          — most of the corpus is never touched, because the graph already skipped it.</li>
+      </ul>
+
+      <div class="viz" id="scale-viz">
+        <div class="viz-title">Query time, brute-force vs HNSW, as corpus grows</div>
+        <div class="step-controls">
+          <button class="step-btn" id="scale-prev">◀ Prev</button>
+          <button class="step-btn primary" id="scale-play">▶ Play</button>
+          <button class="step-btn" id="scale-next">Next ▶</button>
+          <button class="step-btn" id="scale-reset">Reset</button>
+          <span class="step-counter" id="scale-counter"></span>
+        </div>
+        <div class="step-caption" id="scale-caption"></div>
+        <div id="scale-bars"></div>
+      </div>
+
+      <div class="card">
+        <h3>Where the vectors live</h3>
+        <ul style="margin-bottom:0;">
+          <li><strong>pgvector</strong> — already running Postgres? Add the extension, keep vectors next to
+            relational data, one less system to operate.</li>
+          <li><strong>Chroma / Qdrant</strong> — purpose-built, easy to self-host, good default for a
+            mid-size app.</li>
+          <li><strong>Pinecone / Weaviate Cloud</strong> — managed, scales without operating the index,
+            costs more per GB.</li>
+        </ul>
+      </div>
+      <div class="card">
+        <h3>Cost/latency knobs, roughly in order of impact</h3>
+        <ol style="margin-bottom:0;">
+          <li><code>top_k</code> — every extra retrieved chunk adds prompt tokens (cost) and dilutes context
+            (quality).</li>
+          <li>Rerank depth — reranking 50 candidates instead of 10 multiplies reranker cost ~5x for often
+            marginal gains past the top ~20.</li>
+          <li>Embedding dimensionality — a 3072-dim embedding costs more to store and search than 768-dim;
+            many providers offer truncated/quantized variants (e.g. Matryoshka embeddings) for a small
+            quality hit.</li>
+        </ol>
+      </div>
+    </section>
+
+    <section>
+      <div class="sec-head"><span class="sec-num">09</span>
+        <h2>Freshness &amp; updates</h2>
+      </div>
+      <ul>
+        <li>Step back and every section in this tutorial has made one assumption: the corpus is fixed at
+          index time. Section 07's "stale index" failure is what happens when that assumption quietly
+          breaks — real documents get edited, deleted, replaced, and the index has no built-in way to
+          notice.</li>
+        <li>An index is best understood as a <em>cache</em> of your documents as they were at embedding
+          time, and like any cache, it needs an explicit invalidation strategy or it silently drifts from
+          the truth.</li>
+        <li>The key piece that makes invalidation possible at all is a stable <code>chunk_id</code> (e.g. a
+          hash of <code>source_doc_id + chunk_offset</code>) — without one, there's no way to know that a
+          newly-embedded chunk is an <em>update</em> to something already in the store rather than a brand
+          new entry, so a naive re-embed just piles up duplicates instead of replacing anything.</li>
+      </ul>
+
+      <div class="viz" id="fresh-viz">
+        <div class="viz-title">Upsert store — same id in, old vector replaced, no duplicate</div>
+        <div class="step-controls">
+          <button class="step-btn" id="fresh-prev">◀ Prev</button>
+          <button class="step-btn primary" id="fresh-play">▶ Play</button>
+          <button class="step-btn" id="fresh-next">Next ▶</button>
+          <button class="step-btn" id="fresh-reset">Reset</button>
+          <span class="step-counter" id="fresh-counter"></span>
+        </div>
+        <div class="step-caption" id="fresh-caption"></div>
+        <div id="fresh-store"></div>
+      </div>
+      <ul style="margin-bottom:0;">
+        <li><strong>Point-in-time consistency</strong> is the sharpest edge of this: if a document updates
+          while a batch of queries is mid-flight, some queries can land on the old vector and some on the
+          new one — the store has no single moment where "the update happened" for every reader at once.</li>
+        <li>Chasing that down with distributed transactions is usually not worth it; the pragmatic answer is
+          to accept eventual consistency and just keep the update-to-visible lag small enough that it rarely
+          matters.</li>
+      </ul>
+    </section>
+
+    <footer>RAG IN PRODUCTION</footer>
+  </div>
+
+  <script>
+    // ---------- shared stepper ----------
+    function mountStepper(prefix, steps, intervalMs) {
+      intervalMs = intervalMs || 1900;
+      let step = 0, playing = false, timer = null;
+      const counterEl = document.getElementById(prefix + '-counter');
+      const captionEl = document.getElementById(prefix + '-caption');
+      const prevBtn = document.getElementById(prefix + '-prev');
+      const nextBtn = document.getElementById(prefix + '-next');
+      const playBtn = document.getElementById(prefix + '-play');
+      const resetBtn = document.getElementById(prefix + '-reset');
+
+      function render() {
+        steps[step].run();
+        captionEl.innerHTML = steps[step].caption;
+        counterEl.textContent = `Step ${step + 1} of ${steps.length}`;
+        prevBtn.disabled = step === 0;
+        nextBtn.disabled = step === steps.length - 1;
+      }
+      function stop() { playing = false; playBtn.textContent = '▶ Play'; if (timer) clearInterval(timer); }
+      prevBtn.addEventListener('click', () => { stop(); if (step > 0) { step--; render(); } });
+      nextBtn.addEventListener('click', () => { stop(); if (step < steps.length - 1) { step++; render(); } });
+      resetBtn.addEventListener('click', () => { stop(); step = 0; render(); });
+      playBtn.addEventListener('click', () => {
+        if (playing) { stop(); return; }
+        playing = true; playBtn.textContent = '⏸ Pause';
+        timer = setInterval(() => {
+          if (step >= steps.length - 1) { stop(); return; }
+          step++; render();
+        }, intervalMs);
+      });
+      render();
+    }
+
+    // Freshly-inserted elements have no prior painted frame, so a CSS `transition`
+    // on them never animates — it must start at the pre-state, then flip to the
+    // target state one frame later so the browser has something to interpolate from.
+    function nextFrame(fn) { requestAnimationFrame(() => requestAnimationFrame(fn)); }
+
+    function barRow(label, pct, text, cls) {
+      return `<div class="bar-row"><span class="bar-lbl">${label}</span>
+        <div class="bar-track"><div class="bar-fill ${cls || ''}" data-pct="${Math.max(pct,3)}" style="width:0%">${text}</div></div></div>`;
+    }
+    // call once right after setting innerHTML on a container holding barRow() output
+    function animateBars(container) {
+      nextFrame(() => { container.querySelectorAll('.bar-fill[data-pct]').forEach(el => { el.style.width = el.dataset.pct + '%'; }); });
+    }
+
+    // ---------- 02: Hybrid Search + RRF ----------
+    (function () {
+      const chunks = [
+        { label: 'E-4521 timeout meaning', bm25: 8.1, vec: 0.44 },
+        { label: 'checkout fails under load', bm25: 0.0, vec: 0.61 },
+        { label: '30-day return policy', bm25: 0.0, vec: 0.12 },
+        { label: 'photosynthesis', bm25: 0.0, vec: 0.05 },
+        { label: 'restart pod clears E-4521', bm25: 6.7, vec: 0.52 },
+        { label: 'French Revolution 1789', bm25: 0.0, vec: 0.03 }
+      ];
+      const maxBm25 = Math.max(...chunks.map(c => c.bm25));
+      const bm25Rank = [...chunks].sort((a, b) => b.bm25 - a.bm25);
+      const vecRank = [...chunks].sort((a, b) => b.vec - a.vec);
+      const K = 60;
+      chunks.forEach(c => { c.rrf = 1 / (K + bm25Rank.indexOf(c)) + 1 / (K + vecRank.indexOf(c)); });
+      const fusedRank = [...chunks].sort((a, b) => b.rrf - a.rrf);
+      const maxRrf = Math.max(...chunks.map(c => c.rrf));
+
+      const barsEl = document.getElementById('rrf-bars');
+      const ranksEl = document.getElementById('rrf-ranks');
+
+      function renderBars(order, kind, scoreFn, fmt) {
+        ranksEl.innerHTML = '';
+        const max = kind === 'bm25' ? maxBm25 : (kind === 'vec' ? 1 : maxRrf);
+        barsEl.innerHTML = order.map(c => {
+          const val = scoreFn(c);
+          const pct = max > 0 ? (val / max) * 100 : 0;
+          const cls = kind === 'bm25' ? 'amber' : kind === 'rrf' ? 'hot' : '';
+          return barRow(c.label, pct, fmt(val), cls);
+        }).join('');
+        animateBars(barsEl);
+      }
+      function renderRankCols() {
+        barsEl.innerHTML = '';
+        ranksEl.innerHTML = `<div class="rank-cols">
+          <div><h4>BM25 rank</h4><ol>${bm25Rank.map(c => `<li>${c.label} (${c.bm25.toFixed(1)})</li>`).join('')}</ol></div>
+          <div><h4>Vector rank</h4><ol>${vecRank.map(c => `<li>${c.label} (${c.vec.toFixed(2)})</li>`).join('')}</ol></div>
+        </div>`;
+      }
+
+      mountStepper('rrf', [
+        { caption: `Query: <em>"what does error E-4521 mean"</em>. Six candidate chunks in the corpus, none scored yet.`, run: () => { barsEl.innerHTML = ''; ranksEl.innerHTML = ''; } },
+        { caption: `BM25 scores every chunk by keyword overlap. Only chunks that literally mention "E-4521" or "error" score above zero.`, run: () => renderBars(chunks, 'bm25', c => c.bm25, v => v.toFixed(1)) },
+        { caption: `Vector search scores every chunk by cosine similarity. "checkout fails under load" now scores highest — semantically close, even without the exact error code.`, run: () => renderBars(chunks, 'vec', c => c.vec, v => v.toFixed(2)) },
+        { caption: `Each retriever produces its own ranked list — and they disagree on the #1 result.`, run: renderRankCols },
+        { caption: `RRF: each chunk gets <code>1/(60+rank)</code> from each list, summed. No score normalization needed — only rank position matters.`, run: () => renderBars(chunks, 'rrf', c => c.rrf, v => v.toFixed(4)) },
+        { caption: `Fused ranking, sorted. The E-4521 chunks win because they rank well in BM25 — vector search alone would have ranked "checkout fails under load" first.`, run: () => renderBars(fusedRank, 'rrf', c => c.rrf, v => v.toFixed(4)) }
+      ]);
+    })();
+
+    // ---------- 03: Reranking (bi-encoder vs cross-encoder) ----------
+    (function () {
+      const candidates = [
+        { label: 'E-4521 timeout meaning', rrf: 0.031, bi: 0.44, cross: 9.2 },
+        { label: 'restart pod clears E-4521', rrf: 0.028, bi: 0.52, cross: 9.6 },
+        { label: 'checkout fails under load', rrf: 0.017, bi: 0.61, cross: 3.1 },
+        { label: '30-day return policy', rrf: 0.006, bi: 0.12, cross: 0.4 }
+      ];
+      const diagramEl = document.getElementById('rerank-diagram');
+      const attnEl = document.getElementById('rerank-attn');
+      const barsEl = document.getElementById('rerank-bars');
+      const costEl = document.getElementById('rerank-cost');
+
+      function bars(order, key, max, fmt, cls) {
+        barsEl.innerHTML = order.map(c => barRow(c.label, (key(c) / max) * 100, fmt(key(c)), cls)).join('');
+        animateBars(barsEl);
+      }
+      function clearExtra() { attnEl.innerHTML = ''; costEl.innerHTML = ''; }
+
+      const qTokens = ['what', 'does', 'E-4521', 'mean'];
+      const dTokens = ['restart', 'pod', 'clears', 'E-4521', 'errors'];
+      function buildAttnGrid() {
+        let html = '<div class="attn-grid" style="display:inline-grid; grid-template-columns:auto repeat(' + dTokens.length + ',1fr); gap:3px; margin:8px auto;">';
+        html += '<div></div>' + dTokens.map(d => `<div class="attn-lbl" style="font-family:var(--mono);font-size:.62rem;color:var(--dim);text-align:center;padding:2px;">${d}</div>`).join('');
+        qTokens.forEach((q, qi) => {
+          html += `<div class="attn-lbl" style="font-family:var(--mono);font-size:.62rem;color:var(--dim);text-align:right;padding:2px 6px 2px 0;">${q}</div>`;
+          dTokens.forEach((d, di) => {
+            const peak = q === 'E-4521' && d === 'E-4521';
+            html += `<div class="attn-cell" data-peak="${peak ? '1' : '0'}" style="width:30px;height:22px;background:var(--panel2);border:1px solid var(--rule);border-radius:3px;transition:background .5s ease, border-color .5s ease;"></div>`;
+          });
+        });
+        html += '</div>';
+        return html;
+      }
+      function lightUpAttn() {
+        nextFrame(() => {
+          attnEl.querySelectorAll('.attn-cell').forEach(el => {
+            const peak = el.dataset.peak === '1';
+            el.style.background = peak ? 'rgba(237,161,0,.75)' : 'rgba(237,161,0,.22)';
+            el.style.borderColor = 'var(--amber)';
+          });
+        });
+      }
+
+      mountStepper('rerank', [
+        {
+          caption: `4 candidates come back from hybrid search (section 02), already ranked by RRF score.`,
+          run: () => { diagramEl.innerHTML = ''; clearExtra(); bars(candidates, c => c.rrf, 0.031, v => v.toFixed(3), ''); }
+        },
+        {
+          caption: `Bi-encoder (Way 1, the summary-card method): query and each document are encoded <em>independently</em> into vectors — two separate forward passes that never see each other — then compared with cosine similarity.`,
+          run: () => {
+            diagramEl.innerHTML = `<div class="diagram-row">
+              <div class="diagram-box">query → vector</div>
+              <span class="diagram-arrow">·</span>
+              <div class="diagram-box">document → vector</div>
+              <span class="diagram-arrow">→</span>
+              <div class="diagram-box">cosine sim</div>
+            </div>
+            <div class="token-divider">query and document encoded on opposite sides of a wall — neither sees the other</div>`;
+            clearExtra();
+            bars(candidates, c => c.bi, 0.61, v => v.toFixed(2), '');
+          }
+        },
+        {
+          caption: `Why it's fast: the document side of that wall was computed <em>once</em>, offline, before this query ever existed — and gets reused for every future query. At query time there's only 1 new forward pass (the query itself); every document vector is a cache hit.`,
+          run: () => {
+            clearExtra();
+            costEl.innerHTML = `<div class="cost-row"><span class="cost-chip">query forward passes needed now: <strong>1</strong></span></div>
+              <div class="cost-row"><span class="cost-chip">document forward passes needed now: <strong>0</strong> (precomputed, cached)</span></div>`;
+          }
+        },
+        {
+          caption: `Cross-encoder (Way 2, actually reading them together): query and document are concatenated into <em>one</em> sequence and run through the model in a single joint forward pass — every attention layer lets each query token look directly at each document token.`,
+          run: () => {
+            diagramEl.innerHTML = `<div class="diagram-row">
+              <div class="diagram-box joint">[ query ⊕ document ] → single model pass</div>
+              <span class="diagram-arrow">→</span>
+              <div class="diagram-box joint">joint relevance score</div>
+            </div>`;
+            attnEl.innerHTML = buildAttnGrid();
+            lightUpAttn();
+            bars(candidates, c => c.cross, 9.6, v => v.toFixed(1), 'amber');
+          }
+        },
+        {
+          caption: `The grid above is every (query token, document token) pair inside that one joint pass — the model can weigh all of them. The brightest cell, "E-4521" ↔ "E-4521", is a direct token-level match neither BM25's bag-of-words scoring nor a single cosine number can represent this precisely — the cross-encoder sees it explicitly, at the token level, in context.`,
+          run: () => { /* keep prior frame's grid + bars visible, caption carries the explanation */ }
+        },
+        {
+          caption: `Why it's slow: none of this can be precomputed, because the joint sequence depends on <em>this specific query</em>. Reranking 4 candidates means 4 fresh forward passes, right now, at query time — that's why reranking only ever runs on a short shortlist, never the whole corpus.`,
+          run: () => {
+            costEl.innerHTML = `<div class="cost-row"><span class="cost-chip hot">forward passes needed now, for 4 candidates: <strong>4</strong></span></div>
+              <div class="cost-row"><span class="cost-chip">(vs. 1 for the bi-encoder step — this is the cost of reading jointly)</span></div>`;
+          }
+        },
+        {
+          caption: `Reranked and sorted by cross-encoder score — "restart pod clears E-4521" now edges out the definitional chunk, because it's the more directly actionable answer. This is what actually goes into the prompt.`,
+          run: () => {
+            const sorted = [...candidates].sort((a, b) => b.cross - a.cross);
+            diagramEl.innerHTML = ''; attnEl.innerHTML = ''; costEl.innerHTML = '';
+            barsEl.innerHTML = sorted.map((c, i) => barRow(c.label, (c.cross / 9.6) * 100, c.cross.toFixed(1), i < 2 ? 'hot' : 'dim')).join('');
+            animateBars(barsEl);
+          }
+        }
+      ], 2300);
+    })();
+
+    // ---------- 04: Chunking strategies ----------
+    (function () {
+      const text = "The Nimbus deploy tool ships code to production every 15 minutes via a cron pipeline. Nimbus requires a green CI run and one human approval before any deploy proceeds. This rule was added after a bad rollout in March.";
+      const cardsEl = document.getElementById('chunk-cards');
+
+      function fixedChunks(str, size, overlap) {
+        const out = []; let start = 0;
+        while (start < str.length) { out.push(str.slice(start, start + size)); start += size - overlap; }
+        return out;
+      }
+      function sentenceChunks(str) {
+        return str.split(/(?<=\.)\s+/).filter(Boolean);
+      }
+
+      function revealCards() { nextFrame(() => { cardsEl.querySelectorAll('.chunk-card').forEach(el => el.classList.add('in')); }); }
+      function renderPlain() {
+        cardsEl.innerHTML = `<div class="chunk-card">${text}</div>`;
+        revealCards();
+      }
+      function renderFixed(overlap) {
+        const size = 95;
+        const chunks = fixedChunks(text, size, overlap);
+        cardsEl.innerHTML = chunks.map((c, i) => {
+          const badCut = !overlap && i < chunks.length - 1;
+          let html = c;
+          if (overlap && i > 0) {
+            const prevTail = chunks[i - 1].slice(-overlap);
+            html = `<span class="ov">${c.slice(0, overlap)}</span>${c.slice(overlap)}`;
+          }
+          return `<div class="chunk-lbl">chunk ${i + 1}</div><div class="chunk-card${badCut ? ' bad' : ''}">${html}${badCut ? ' <span class="cut">←cut mid-sentence</span>' : ''}</div>`;
+        }).join('');
+        revealCards();
+      }
+      function renderSentence() {
+        const chunks = sentenceChunks(text);
+        cardsEl.innerHTML = chunks.map((c, i) => `<div class="chunk-lbl">chunk ${i + 1}</div><div class="chunk-card good">${c.trim()}</div>`).join('');
+        revealCards();
+      }
+
+      mountStepper('chunk', [
+        { caption: `Raw source paragraph, 219 characters, 3 sentences.`, run: renderPlain },
+        { caption: `Fixed-size chunking, 95 chars, <strong>no overlap</strong>. Chunk boundaries fall wherever the character count lands — cutting straight through a sentence.`, run: () => renderFixed(0) },
+        { caption: `Fixed-size chunking, 95 chars, <strong>25-char overlap</strong>. The amber region at the start of each chunk duplicates the tail of the previous one — a fact split across the old boundary is now whole in at least one chunk.`, run: () => renderFixed(25) },
+        { caption: `Recursive / sentence-aware split: boundaries snap to sentence ends. No mid-sentence cuts, no overlap needed — but chunk sizes now vary (67, 78, 74 chars).`, run: renderSentence }
+      ]);
+    })();
+
+    // ---------- 05a: Confusion matrix applied to retrieval ----------
+    (function () {
+      // 6 chunks: 0,1 are ground-truth relevant; 0,2 are what the system retrieved (top-2)
+      const chunks = [
+        { id: 0, label: 'chunk A', relevant: true, retrieved: true },
+        { id: 1, label: 'chunk B', relevant: true, retrieved: false },
+        { id: 2, label: 'chunk C', relevant: false, retrieved: true },
+        { id: 3, label: 'chunk D', relevant: false, retrieved: false },
+        { id: 4, label: 'chunk E', relevant: false, retrieved: false },
+        { id: 5, label: 'chunk F', relevant: false, retrieved: false }
+      ];
+      function catOf(c) {
+        if (c.relevant && c.retrieved) return 'TP';
+        if (!c.relevant && c.retrieved) return 'FP';
+        if (c.relevant && !c.retrieved) return 'FN';
+        return 'TN';
+      }
+      const tilesEl = document.getElementById('conf-tiles');
+      const legendEl = document.getElementById('conf-legend');
+      const formulaEl = document.getElementById('conf-formula');
+
+      tilesEl.innerHTML = chunks.map(c => `
+        <div class="conf-tile" id="conf-tile-${c.id}">
+          <div class="ring ring-relevant"></div>
+          <div class="ring ring-retrieved"></div>
+          <span id="conf-label-${c.id}">${c.label}</span>
+        </div>`).join('');
+
+      function reset() {
+        chunks.forEach(c => {
+          const el = document.getElementById('conf-tile-' + c.id);
+          el.className = 'conf-tile';
+          document.getElementById('conf-label-' + c.id).textContent = c.label;
+        });
+        legendEl.innerHTML = '';
+        formulaEl.innerHTML = '';
+      }
+      function showRelevant() {
+        chunks.forEach(c => {
+          const el = document.getElementById('conf-tile-' + c.id);
+          if (c.relevant) el.classList.add('show-relevant');
+        });
+      }
+      function showRetrieved() {
+        chunks.forEach(c => {
+          const el = document.getElementById('conf-tile-' + c.id);
+          if (c.retrieved) el.classList.add('show-retrieved');
+        });
+      }
+      function categorize() {
+        chunks.forEach(c => {
+          const cat = catOf(c);
+          const el = document.getElementById('conf-tile-' + c.id);
+          el.classList.add('cat-' + cat);
+          document.getElementById('conf-label-' + c.id).textContent = cat;
+        });
+        legendEl.innerHTML = `<div class="conf-legend">
+          <span><span class="lg-dot" style="background:var(--accent);"></span>TP — relevant &amp; retrieved</span>
+          <span><span class="lg-dot" style="background:var(--flag);"></span>FP — irrelevant, retrieved anyway</span>
+          <span><span class="lg-dot" style="background:var(--amber);"></span>FN — relevant, missed</span>
+          <span><span class="lg-dot" style="background:var(--panel2);border:1px solid var(--rule);"></span>TN — irrelevant, correctly skipped</span>
+        </div>`;
+      }
+
+      mountStepper('conf', [
+        { caption: `6 chunks exist for this query. Nothing marked yet — just the raw corpus.`, run: reset },
+        { caption: `Draw the <strong>ground-truth</strong> boundary (dashed green): a human decided chunks A and B are actually relevant to this query. This boundary has nothing to do with what any retriever does — it's fixed ahead of time.`, run: () => { reset(); showRelevant(); } },
+        { caption: `Now draw the <strong>system</strong> boundary (solid blue): the retriever's top-2 results were A and C. This boundary is independent of the first — the system doesn't know which chunks are truly relevant.`, run: () => { reset(); showRelevant(); showRetrieved(); } },
+        {
+          caption: `Every chunk now falls into exactly one of 4 boxes based on where the two boundaries overlap — the confusion matrix: <strong>TP</strong>=1 (A), <strong>FP</strong>=1 (C), <strong>FN</strong>=1 (B), <strong>TN</strong>=3 (D, E, F).`,
+          run: () => { reset(); showRelevant(); showRetrieved(); categorize(); }
+        },
+        {
+          caption: `Plug the counts in: <strong>Precision@2 = TP/(TP+FP) = 1/2 = 0.5</strong> — half of what we retrieved was actually relevant. <strong>Recall = TP/(TP+FN) = 1/2 = 0.5</strong> — half of what was relevant got retrieved. TN never appears in either formula — it's the "correctly ignored" bucket, and with a corpus this size it would dwarf every other number if included.`,
+          run: () => {
+            reset(); showRelevant(); showRetrieved(); categorize();
+            formulaEl.innerHTML = `<span class="hi">Precision@2 = TP/(TP+FP) = 1/(1+1) = 0.5</span><span class="hi">Recall = TP/(TP+FN) = 1/(1+1) = 0.5</span>`;
+          }
+        }
+      ], 2400);
+    })();
+
+    // ---------- 05: Retrieval metrics accumulation ----------
+    (function () {
+      const queries = [
+        { name: 'A', pattern: [1, 0, 0], rank: 1 },
+        { name: 'B', pattern: [0, 1, 0], rank: 2 },
+        { name: 'C', pattern: [0, 0, 0], rank: null }
+      ];
+      const dotsEl = document.getElementById('metrics-dots');
+      const stateEl = document.getElementById('metrics-state');
+
+      function dcgOf(pattern) { return pattern.reduce((s, r, i) => s + r / Math.log2(i + 2), 0); }
+
+      function renderDots(upto) {
+        dotsEl.innerHTML = queries.map((q, qi) => {
+          const shown = qi <= upto;
+          const dots = q.pattern.map(v => `<span class="dot" data-hit="${shown && v ? '1' : '0'}"></span>`).join('');
+          return `<div class="dot-row"><span class="q-lbl">Query ${q.name}</span><div class="dots">${dots}</div>${shown ? `<span style="color:var(--dim);font-size:.78rem;">${q.rank ? 'hit at rank ' + q.rank : 'no hit in top 3'}</span>` : ''}</div>`;
+        }).join('');
+        nextFrame(() => { dotsEl.querySelectorAll('.dot[data-hit="1"]').forEach(el => el.classList.add('hit')); });
+      }
+
+      function stateHTML(upto) {
+        const seen = queries.slice(0, upto + 1);
+        const n = seen.length;
+        const precisionSum = seen.reduce((s, q) => s + q.pattern.filter(Boolean).length / 3, 0);
+        const recallSum = seen.reduce((s, q) => s + (q.rank ? 1 : 0), 0);
+        const rrSum = seen.reduce((s, q) => s + (q.rank ? 1 / q.rank : 0), 0);
+        const dcgSum = seen.reduce((s, q) => s + dcgOf(q.pattern), 0);
+        return `<div>Precision@3 running sum: <strong>${precisionSum.toFixed(3)}</strong> / ${n} queries</div>
+          <div>Recall@3 running sum: <strong>${recallSum}</strong> / ${n} queries</div>
+          <div>Reciprocal rank running sum: <strong>${rrSum.toFixed(3)}</strong> / ${n} queries</div>
+          <div>DCG@3 running sum: <strong>${dcgSum.toFixed(3)}</strong> / ${n} queries</div>`;
+      }
+
+      mountStepper('metrics', [
+        { caption: `Eval set: 3 queries, each with one known-relevant chunk, top-3 retrieved per query. Nothing revealed yet.`, run: () => { renderDots(-1); stateEl.innerHTML = ''; } },
+        { caption: `Query A: hit at rank 1 (best case). Precision contributes 1/3, recall contributes 1, reciprocal rank contributes 1/1, DCG contributes 1/log2(2)=1.`, run: () => { renderDots(0); stateEl.innerHTML = stateHTML(0); } },
+        { caption: `Query B: hit at rank 2. Precision again 1/3, recall 1, but reciprocal rank drops to 1/2 and DCG discounts to 1/log2(3)≈0.631 — rank position costs it on the metrics that reward "near the top."`, run: () => { renderDots(1); stateEl.innerHTML = stateHTML(1); } },
+        { caption: `Query C: no hit anywhere in top 3. Precision and recall both contribute 0; reciprocal rank and DCG contribute 0 too.`, run: () => { renderDots(2); stateEl.innerHTML = stateHTML(2); } },
+        {
+          caption: `Divide each running sum by 3 queries: <strong>Precision@3 ≈ 0.222</strong>, <strong>Recall@3 ≈ 0.667</strong>, <strong>MRR ≈ 0.500</strong>. NDCG@3 also normalizes each query's DCG against its own IDCG (1.0, since one relevant chunk) before averaging → <strong>NDCG@3 ≈ 0.544</strong>.`,
+          run: () => { renderDots(2); stateEl.innerHTML = `<div class="hi">Precision@3 = 0.667÷3 = 0.222</div><div class="hi">Recall@3 = 2÷3 = 0.667</div><div class="hi">MRR = 1.5÷3 = 0.500</div><div class="hi">NDCG@3 = (1.000+0.631+0.000)÷3 = 0.544</div>`; }
+        }
+      ], 2200);
+    })();
+
+    // ---------- 06: Generation metrics ----------
+    (function () {
+      const bodyEl = document.getElementById('genmetrics-body');
+      const relevancyQs = [
+        { q: '"What does error E-4521 mean?"', sim: 0.91 },
+        { q: '"Why did the payment gateway time out?"', sim: 0.85 },
+        { q: '"What is the return policy?" (off-topic drift)', sim: 0.40 }
+      ];
+
+      // insert a claim chip in its base (dim) state, then flip to its target
+      // classes one frame later so the opacity/border transition actually plays
+      function claimChip(id, text, target) {
+        return `<div class="claim-chip" id="${id}" data-target="${target}">${text}</div>`;
+      }
+      function revealChips(container) {
+        nextFrame(() => { container.querySelectorAll('.claim-chip[data-target]').forEach(el => { el.className = 'claim-chip ' + el.dataset.target; }); });
+      }
+      function revealBars(container) { animateBars(container); }
+      function revealDots(container) {
+        nextFrame(() => { container.querySelectorAll('.hdot[data-cat]').forEach(el => { el.classList.add(el.dataset.cat); }); });
+      }
+
+      mountStepper('genmetrics', [
+        {
+          caption: `Answer to check: <em>"E-4521 means the payment gateway timed out, and it was first introduced in v2.3."</em> Context only says the first half.`,
+          run: () => { bodyEl.innerHTML = claimChip('c-full', 'Full answer, not yet split into claims', 'shown'); revealChips(bodyEl); }
+        },
+        {
+          caption: `Split the answer into individual factual claims.`,
+          run: () => { bodyEl.innerHTML = claimChip('c1', 'Claim 1: "means payment gateway timed out"', 'shown') + claimChip('c2', 'Claim 2: "first introduced in v2.3"', 'shown'); revealChips(bodyEl); }
+        },
+        {
+          caption: `Check claim 1 against the retrieved context — directly supported.`,
+          run: () => { bodyEl.innerHTML = claimChip('c1', '✓ Claim 1 — supported', 'shown ok') + claimChip('c2', 'Claim 2: "first introduced in v2.3"', 'shown'); revealChips(bodyEl); }
+        },
+        {
+          caption: `Check claim 2 — context never mentions a version number. <strong>Faithfulness = 1/2 = 0.5</strong> → flagged hallucinated.`,
+          run: () => { bodyEl.innerHTML = claimChip('c1', '✓ Claim 1 — supported', 'shown ok') + claimChip('c2', '✗ Claim 2 — not in context', 'shown bad'); revealChips(bodyEl); }
+        },
+        {
+          caption: `Answer relevancy: an LLM reverse-generates questions the answer would suit, embeds them, and compares to the original query.`,
+          run: () => { bodyEl.innerHTML = relevancyQs.map(r => barRow(r.q, r.sim * 100, r.sim.toFixed(2), r.sim < 0.6 ? 'flag' : 'hot')).join(''); revealBars(bodyEl); }
+        },
+        {
+          caption: `Average similarity across generated questions: <strong>(0.91 + 0.85 + 0.40) / 3 ≈ 0.72</strong>. The off-topic generated question drags the score down — the answer partially wandered from what was asked.`,
+          run: () => { bodyEl.innerHTML = relevancyQs.map(r => barRow(r.q, r.sim * 100, r.sim.toFixed(2), r.sim < 0.6 ? 'flag' : 'hot')).join('') + `<div class="state-panel"><span class="hi">Answer relevancy ≈ 0.72</span></div>`; revealBars(bodyEl); }
+        },
+        {
+          caption: `Hallucination rate, aggregated over an eval set of 10 answers: 2 fall below the faithfulness threshold. <strong>Rate = 2/10 = 0.20</strong>. Track this over time — a rising rate with retrieval metrics unchanged usually points at a prompt-template problem, not a retrieval problem.`,
+          run: () => {
+            const dots = Array.from({ length: 10 }, (_, i) => `<div class="hdot" data-cat="${i < 2 ? 'bad' : 'good'}"></div>`).join('');
+            bodyEl.innerHTML = `<div class="hallu-grid">${dots}</div><div class="state-panel"><span class="hi">Hallucination rate = 2/10 = 0.20</span></div>`;
+            revealDots(bodyEl);
+          }
+        }
+      ], 2200);
+    })();
+
+    // ---------- 07: Lost-in-the-middle ----------
+    (function () {
+      const holder = document.getElementById('lim-svg-holder');
+      const W = 560, H = 160, PAD = 30;
+      function attn(pos) { // pos 0..1, U-shaped
+        const x = pos * 2 - 1;
+        return 0.25 + 0.7 * (x * x);
+      }
+      function buildSVG() {
+        let path = `M ${PAD} ${H - PAD - attn(0) * (H - 2 * PAD)}`;
+        for (let i = 1; i <= 40; i++) {
+          const p = i / 40;
+          const x = PAD + p * (W - 2 * PAD);
+          const y = H - PAD - attn(p) * (H - 2 * PAD);
+          path += ` L ${x.toFixed(1)} ${y.toFixed(1)}`;
+        }
+        return `<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" style="max-width:100%;">
+          <line x1="${PAD}" y1="${H - PAD}" x2="${W - PAD}" y2="${H - PAD}" stroke="var(--rule)" stroke-width="1"/>
+          <path d="${path}" fill="none" stroke="var(--signal)" stroke-width="2"/>
+          <text x="${PAD}" y="${H - 8}" fill="var(--dim)" font-size="10" font-family="var(--mono)">start</text>
+          <text x="${W - PAD - 22}" y="${H - 8}" fill="var(--dim)" font-size="10" font-family="var(--mono)">end</text>
+          <text x="${W / 2 - 30}" y="${H - 8}" fill="var(--dim)" font-size="10" font-family="var(--mono)">middle</text>
+          <circle id="lim-marker" r="6" fill="var(--amber)"/>
+          <line id="lim-guide" stroke="var(--amber)" stroke-width="1" stroke-dasharray="3,3"/>
+          <text id="lim-val" fill="var(--ink)" font-size="11" font-family="var(--mono)"></text>
+        </svg>`;
+      }
+      holder.innerHTML = buildSVG();
+
+      let limTween = null;
+      function place(pos, label) {
+        const x = PAD + pos * (W - 2 * PAD);
+        const y = H - PAD - attn(pos) * (H - 2 * PAD);
+        const marker = document.getElementById('lim-marker');
+        const guide = document.getElementById('lim-guide');
+        const val = document.getElementById('lim-val');
+
+        const x0 = parseFloat(marker.getAttribute('cx')) || x;
+        const y0 = parseFloat(marker.getAttribute('cy')) || y;
+        if (limTween) cancelAnimationFrame(limTween);
+        const duration = 500, start = performance.now();
+        const ease = t => 1 - Math.pow(1 - t, 3); // ease-out cubic, so eye can track the move
+        function tick(now) {
+          const t = Math.min(1, (now - start) / duration);
+          const e = ease(t);
+          const cx = x0 + (x - x0) * e, cy = y0 + (y - y0) * e;
+          marker.setAttribute('cx', cx); marker.setAttribute('cy', cy);
+          guide.setAttribute('x1', cx); guide.setAttribute('y1', cy);
+          guide.setAttribute('x2', cx); guide.setAttribute('y2', H - PAD);
+          val.setAttribute('x', Math.min(cx + 10, W - 140)); val.setAttribute('y', cy - 8);
+          if (t < 1) { limTween = requestAnimationFrame(tick); } else { limTween = null; }
+        }
+        limTween = requestAnimationFrame(tick);
+        val.textContent = `${label}: attention ≈ ${attn(pos).toFixed(2)}`;
+      }
+
+      mountStepper('lim', [
+        { caption: `LLMs attend more strongly to the start and end of a long context window than the middle — the classic U-shaped curve.`, run: () => place(0.02, 'front') },
+        { caption: `The relevant chunk retrieved correctly, but placed at position 5 of 10 (middle of the stuffed context) — attention weight is near its lowest point. Easy for the model to skim past.`, run: () => place(0.5, 'middle (buried)') },
+        { caption: `Move the same chunk to the front of the context — attention weight jumps back up.`, run: () => place(0.05, 'front') },
+        { caption: `The end works too — front and back both beat the middle. Mitigation: keep top_k small, and order retrieved chunks so the most relevant one lands at the front or end, never buried.`, run: () => place(0.97, 'end') }
+      ]);
+    })();
+
+    // ---------- 08: ANN scaling ----------
+    (function () {
+      const sizes = [
+        { n: '1K', brute: 8, ann: 6, label: '~1ms vs ~1ms' },
+        { n: '10K', brute: 45, ann: 9, label: '~10ms vs ~2ms' },
+        { n: '100K', brute: 100, ann: 13, label: '~100ms vs ~3ms' },
+        { n: '1M', brute: 100, ann: 17, label: '~1000ms+ (too slow) vs ~4ms' }
+      ];
+      const barsEl = document.getElementById('scale-bars');
+      function render(i) {
+        const s = sizes[i];
+        barsEl.innerHTML = barRow('Brute-force O(n)', s.brute, s.n + ' chunks', s.brute >= 100 ? 'flag' : '') +
+          barRow('HNSW O(log n)', s.ann, s.n + ' chunks', 'hot') +
+          `<div class="state-panel"><span>relative query time — ${s.label}</span></div>`;
+        animateBars(barsEl);
+      }
+      mountStepper('scale', sizes.map((s, i) => ({
+        caption: `Corpus size: <strong>${s.n}</strong> chunks. ${i === 0 ? 'At this scale both approaches are fast — the difference doesn\'t matter yet.' : i === sizes.length - 1 ? 'Brute-force query time keeps growing linearly with corpus size; HNSW barely moves — this is the O(n) vs O(log n) gap in practice.' : 'Brute-force query time keeps growing with corpus size; HNSW grows far more slowly.'}`,
+        run: () => render(i)
+      })));
+    })();
+
+    // ---------- 09: Freshness / upsert ----------
+    (function () {
+      const el = document.getElementById('fresh-store');
+      function reveal() { nextFrame(() => { el.querySelectorAll('.chunk-card').forEach(c => c.classList.add('in')); }); }
+      function render(state) {
+        if (state === 'empty') { el.innerHTML = `<div class="chunk-card" style="opacity:0;">store is empty</div>`; }
+        else if (state === 'v1') { el.innerHTML = `<div class="chunk-lbl">id: policy-v1</div><div class="chunk-card">"Refunds are accepted within 30 days of purchase."</div>`; }
+        else if (state === 'v2') { el.innerHTML = `<div class="chunk-lbl">id: policy-v1 (same id — replaced in place)</div><div class="chunk-card good">"Refunds are accepted within 60 days of purchase, extended for the holidays."</div>`; }
+        else if (state === 'query') { el.innerHTML = `<div class="chunk-lbl">query: "refund window" →</div><div class="chunk-card good">"Refunds are accepted within 60 days of purchase, extended for the holidays." ← returned</div>`; }
+        else if (state === 'deleted') { el.innerHTML = `<div class="chunk-card" style="opacity:0;">policy-v1 deleted — store empty, chunk unretrievable anywhere</div>`; }
+        reveal();
+        if (state === 'empty' || state === 'deleted') nextFrame(() => { el.querySelectorAll('.chunk-card').forEach(c => c.style.opacity = '.5'); });
+      }
+      mountStepper('fresh', [
+        { caption: `Store starts with one chunk: id <code>policy-v1</code>.`, run: () => render('v1') },
+        { caption: `Source doc changes (30 days → 60 days). <code>upsert("policy-v1", new_text)</code> re-embeds and replaces the vector <em>in place</em> — same id, no duplicate card.`, run: () => render('v2') },
+        { caption: `Query "refund window" now returns the updated 60-day text — not a stale duplicate sitting alongside it.`, run: () => render('query') },
+        { caption: `<code>delete("policy-v1")</code> tombstones the chunk — removed from the store entirely, no longer retrievable by any query.`, run: () => render('deleted') }
+      ]);
+    })();
+  </script>
+</body>
+
+</html>
